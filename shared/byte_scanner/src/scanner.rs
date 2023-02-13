@@ -12,10 +12,6 @@ impl Scanner for SimpleScanner {
         let mut position_in_pattern = 0;
 
         for (position, byte) in scannable.iter().enumerate() {
-            if position + pattern.length > scannable.len() {
-                break;
-            }
-
             if pattern.mask[position_in_pattern] &&
                 pattern.bytes[position_in_pattern] != *byte {
                 position_in_pattern = 0;
