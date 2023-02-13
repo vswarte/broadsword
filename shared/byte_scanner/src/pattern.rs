@@ -10,7 +10,7 @@ pub struct MemoryPattern {
 #[derive(Debug)]
 pub enum MemoryPatternCreationError {
     ParseError(num::ParseIntError),
-    AllWildcardsError,
+    NoMatchableBytesError,
 }
 
 impl MemoryPattern {
@@ -33,7 +33,7 @@ impl MemoryPattern {
         }
 
        if !mask.iter().any(|x| *x) {
-           return Err(MemoryPatternCreationError::AllWildcardsError);
+           return Err(MemoryPatternCreationError::NoMatchableBytesError);
        }
 
         let length = bytes.len();
@@ -79,13 +79,13 @@ mod tests {
     fn from_ida_pattern_returns_error_on_empty_pattern() {
         let result = MemoryPattern::from_ida_pattern("");
 
-        assert!(matches!(result.unwrap_err(), MemoryPatternCreationError::AllWildcardsError));
+        assert!(matches!(result.unwrap_err(), MemoryPatternCreationError::NoMatchableBytesError));
     }
 
     #[test]
     fn from_ida_pattern_returns_error_on_all_wildcard_pattern() {
         let result = MemoryPattern::from_ida_pattern("?? ?? ?? ??");
 
-        assert!(matches!(result.unwrap_err(), MemoryPatternCreationError::AllWildcardsError));
+        assert!(matches!(result.unwrap_err(), MemoryPatternCreationError::NoMatchableBytesError));
     }
 }
