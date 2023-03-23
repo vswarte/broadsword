@@ -8,15 +8,14 @@ pub struct ThreadedScanner {
 }
 
 impl Scanner for ThreadedScanner {
-    fn scan(&self, scannable: &[u8], pattern: &Pattern) -> Option<usize> {
+    fn scan(&self, scannable: &'static [u8], pattern: &Pattern) -> Option<usize> {
         let chunks = split_scannable(scannable, self.thread_count, pattern.length - 1);
 
         let mut thread_handles = Vec::new();
         for (offset, chunk) in chunks.into_iter() {
             let pattern = pattern.clone();
 
-            let handle =
-                std::thread::spawn(move || SimpleScanner::new().scan(chunk.as_slice(), &pattern));
+            let handle = std::thread::spawn(move || SimpleScanner::new().scan(chunk, &pattern));
 
             thread_handles.push((offset, handle));
         }
@@ -64,8 +63,8 @@ mod tests {
     #[test]
     fn threaded_scanner_behaves_with_empty_slice() {
         let pattern = Pattern::from_ida_pattern("AA AA AA AA AA").unwrap();
-        let slice = [];
-        let result = ThreadedScanner::new_with_thread_count(4).scan(&slice, &pattern);
+        let slice = Box::leak(Box::new([]));
+        let result = ThreadedScanner::new_with_thread_count(4).scan(slice, &pattern);
 
         assert_eq!(result, None);
     }
@@ -73,8 +72,8 @@ mod tests {
     #[test]
     fn threaded_scanner_behaves_with_too_long_of_an_aob() {
         let pattern = Pattern::from_ida_pattern("AA AA AA AA AA").unwrap();
-        let slice = [0x00, 0x00, 0x00, 0x00];
-        let result = ThreadedScanner::new_with_thread_count(4).scan(&slice, &pattern);
+        let slice = Box::leak(Box::new([0x00, 0x00, 0x00, 0x00]));
+        let result = ThreadedScanner::new_with_thread_count(4).scan(slice, &pattern);
 
         assert_eq!(result, None);
     }

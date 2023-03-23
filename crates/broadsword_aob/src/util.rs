@@ -1,8 +1,8 @@
 pub(crate) fn split_scannable(
-    scannable: &[u8],
+    scannable: &'static [u8],
     chunks: usize,
     overlap: usize,
-) -> Vec<(usize, Vec<u8>)> {
+) -> Vec<(usize, &'static [u8])> {
     let mut results = Vec::new();
 
     let bytes_per_chunk = scannable.len() / chunks;
@@ -12,7 +12,7 @@ pub(crate) fn split_scannable(
         let start = current_offset;
         let end = clamp(start + (bytes_per_chunk + overlap), 0, scannable.len());
 
-        results.push((start, scannable[start..end].to_vec()));
+        results.push((start, &scannable[start..end]));
         current_offset = start + bytes_per_chunk;
     }
 

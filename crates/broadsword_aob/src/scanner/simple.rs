@@ -39,8 +39,8 @@ mod tests {
     #[test]
     fn simple_scanner_behaves_with_empty_slice() {
         let pattern = Pattern::from_ida_pattern("AA AA AA AA AA").unwrap();
-        let slice = [];
-        let result = SimpleScanner::new().scan(&slice, &pattern);
+        let slice = Box::leak(Box::new([]));
+        let result = SimpleScanner::new().scan(slice, &pattern);
 
         assert_eq!(result, None);
     }
@@ -48,8 +48,8 @@ mod tests {
     #[test]
     fn simple_scanner_behaves_with_too_long_of_an_aob() {
         let pattern = Pattern::from_ida_pattern("AA AA AA AA AA").unwrap();
-        let slice = [0x00, 0x00, 0x00, 0x00];
-        let result = SimpleScanner::new().scan(&slice, &pattern);
+        let slice = Box::leak(Box::new([0x00, 0x00, 0x00, 0x00]));
+        let result = SimpleScanner::new().scan(slice, &pattern);
 
         assert_eq!(result, None);
     }
