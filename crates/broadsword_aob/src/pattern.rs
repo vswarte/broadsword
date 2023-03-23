@@ -25,19 +25,20 @@ impl Pattern {
                 bytes.push(0);
             } else {
                 mask.push(true);
-                bytes.push(
-                    u8::from_str_radix(byte, 16)
-                        .map_err(PatternError::ParseError)?
-                );
+                bytes.push(u8::from_str_radix(byte, 16).map_err(PatternError::ParseError)?);
             }
         }
 
-       if !mask.iter().any(|x| *x) {
-           return Err(PatternError::NoMatchableBytesError);
-       }
+        if !mask.iter().any(|x| *x) {
+            return Err(PatternError::NoMatchableBytesError);
+        }
 
         let length = bytes.len();
-        Ok(Self { bytes, mask, length })
+        Ok(Self {
+            bytes,
+            mask,
+            length,
+        })
     }
 }
 
@@ -51,9 +52,20 @@ mod tests {
     fn from_ida_pattern_works() {
         let pattern = Pattern::from_ida_pattern("12 34 ?? 78 9A").unwrap();
 
-        assert_eq!(pattern.length, 5, "Indicated pattern length did not match up with input");
-        assert_eq!(pattern.mask.len(), 5, "Length on the mask did not match up with input");
-        assert_eq!(pattern.bytes.len(), 5, "Length on the matching bytes did not match up with input");
+        assert_eq!(
+            pattern.length, 5,
+            "Indicated pattern length did not match up with input"
+        );
+        assert_eq!(
+            pattern.mask.len(),
+            5,
+            "Length on the mask did not match up with input"
+        );
+        assert_eq!(
+            pattern.bytes.len(),
+            5,
+            "Length on the matching bytes did not match up with input"
+        );
 
         assert_eq!(pattern.bytes[0], 0x12);
         assert_eq!(pattern.bytes[1], 0x34);
@@ -72,20 +84,29 @@ mod tests {
     fn from_ida_pattern_returns_error_on_invalid_hex_value() {
         let result = Pattern::from_ida_pattern("XX 34 ?? 78 9A");
 
-        assert!(matches!(result.unwrap_err(), PatternError::ParseError {..} ));
+        assert!(matches!(
+            result.unwrap_err(),
+            PatternError::ParseError { .. }
+        ));
     }
 
     #[test]
     fn from_ida_pattern_returns_error_on_empty_pattern() {
         let result = Pattern::from_ida_pattern("");
 
-        assert!(matches!(result.unwrap_err(), PatternError::NoMatchableBytesError));
+        assert!(matches!(
+            result.unwrap_err(),
+            PatternError::NoMatchableBytesError
+        ));
     }
 
     #[test]
     fn from_ida_pattern_returns_error_on_all_wildcard_pattern() {
         let result = Pattern::from_ida_pattern("?? ?? ?? ??");
 
-        assert!(matches!(result.unwrap_err(), PatternError::NoMatchableBytesError));
+        assert!(matches!(
+            result.unwrap_err(),
+            PatternError::NoMatchableBytesError
+        ));
     }
 }

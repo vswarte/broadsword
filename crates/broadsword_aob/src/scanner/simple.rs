@@ -8,8 +8,7 @@ impl Scanner for SimpleScanner {
         let mut position_in_pattern = 0;
 
         for (position, byte) in scannable.iter().enumerate() {
-            if pattern.mask[position_in_pattern] &&
-                pattern.bytes[position_in_pattern] != *byte {
+            if pattern.mask[position_in_pattern] && pattern.bytes[position_in_pattern] != *byte {
                 position_in_pattern = 0;
                 continue;
             }
@@ -33,9 +32,9 @@ impl SimpleScanner {
 
 #[cfg(test)]
 mod tests {
-    use crate::scanner::Scanner;
     use crate::pattern::Pattern;
     use crate::scanner::simple::SimpleScanner;
+    use crate::scanner::Scanner;
 
     #[test]
     fn simple_scanner_behaves_with_empty_slice() {

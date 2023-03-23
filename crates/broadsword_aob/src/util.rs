@@ -1,4 +1,8 @@
-pub(crate) fn split_scannable(scannable: &[u8], chunks: usize, overlap: usize) -> Vec<(usize, Vec<u8>)> {
+pub(crate) fn split_scannable(
+    scannable: &[u8],
+    chunks: usize,
+    overlap: usize,
+) -> Vec<(usize, Vec<u8>)> {
     let mut results = Vec::new();
 
     let bytes_per_chunk = scannable.len() / chunks;
@@ -17,17 +21,15 @@ pub(crate) fn split_scannable(scannable: &[u8], chunks: usize, overlap: usize) -
 
 fn clamp(input: usize, min: usize, max: usize) -> usize {
     if input < min {
-        return min
+        return min;
     }
 
     if input > max {
-        return max
+        return max;
     }
 
     input
 }
 
-
 #[cfg(test)]
-mod tests {
-}
+mod tests {}

@@ -1,6 +1,6 @@
 use crate::pattern::Pattern;
-use crate::scanner::Scanner;
 use crate::scanner::simple::SimpleScanner;
+use crate::scanner::Scanner;
 use crate::util::split_scannable;
 
 pub struct ThreadedScanner {
@@ -15,19 +15,17 @@ impl Scanner for ThreadedScanner {
         for (offset, chunk) in chunks.into_iter() {
             let pattern = pattern.clone();
 
-            let handle = std::thread::spawn(move || {
-                SimpleScanner::new().scan(chunk.as_slice(), &pattern)
-            });
+            let handle =
+                std::thread::spawn(move || SimpleScanner::new().scan(chunk.as_slice(), &pattern));
 
             thread_handles.push((offset, handle));
         }
 
         for handle in thread_handles {
-            let result = handle.1.join().unwrap()
-                .map(|r| r + handle.0);
+            let result = handle.1.join().unwrap().map(|r| r + handle.0);
 
             if result.is_some() {
-                return result
+                return result;
             }
         }
 
@@ -37,7 +35,9 @@ impl Scanner for ThreadedScanner {
 
 impl ThreadedScanner {
     pub fn new() -> Self {
-        Self { thread_count: std::thread::available_parallelism().unwrap().get() }
+        Self {
+            thread_count: std::thread::available_parallelism().unwrap().get(),
+        }
     }
 
     pub fn new_with_thread_count(thread_count: usize) -> Self {
@@ -47,15 +47,18 @@ impl ThreadedScanner {
 
 #[cfg(test)]
 mod tests {
-    use crate::scanner::Scanner;
     use crate::pattern::Pattern;
     use crate::scanner::threaded::ThreadedScanner;
+    use crate::scanner::Scanner;
 
     #[test]
     fn thread_scanner_defaults_to_available_parallelism() {
         let scanner = ThreadedScanner::new();
 
-        assert!(scanner.thread_count > 0, "Thread count was not a positive number");
+        assert!(
+            scanner.thread_count > 0,
+            "Thread count was not a positive number"
+        );
     }
 
     #[test]
@@ -80,7 +83,9 @@ mod tests {
     fn threaded_scanner_finds_the_pattern_1() {
         let pattern = Pattern::from_ida_pattern("75 84 4A EF 23 24 CA 35").unwrap();
         let randomness = include_bytes!("../../test/random.bin");
-        let result = ThreadedScanner::new_with_thread_count(4).scan(randomness, &pattern).unwrap();
+        let result = ThreadedScanner::new_with_thread_count(4)
+            .scan(randomness, &pattern)
+            .unwrap();
 
         assert_eq!(result, 1309924);
     }
@@ -89,7 +94,9 @@ mod tests {
     fn threaded_scanner_finds_the_pattern_2() {
         let pattern = Pattern::from_ida_pattern("B7 ?? CF D8 ?? 0A ?? 27").unwrap();
         let randomness = include_bytes!("../../test/random.bin");
-        let result = ThreadedScanner::new_with_thread_count(4).scan(randomness, &pattern).unwrap();
+        let result = ThreadedScanner::new_with_thread_count(4)
+            .scan(randomness, &pattern)
+            .unwrap();
 
         assert_eq!(result, 867776);
     }
