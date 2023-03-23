@@ -1,9 +1,0 @@
-[package]
-name = "broadsword_launcher"
-version = "0.0.1"
-edition = "2021"
-
-[dependencies]
-toml = "0.5"
-dll-syringe = "0.15.0"
-serde = { workspace = true }

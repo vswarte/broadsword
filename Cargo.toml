@@ -1,11 +1,9 @@
 [workspace]
 members = [
-	"launcher",
-	"shared/byte_scanner",
+	"crates/broadsword_aob",
 ]
 
 [workspace.dependencies]
-log = "0.4.17"
-log4rs = "1.2.0"
-serde = { version = "1.0.126", features = ["derive"] }
-detour = { git = "https://github.com/veeenu/detour-rs.git", branch = "master" }
+log = "0.4"
+log4rs = "1.2"
+serde = { version = "1.0", features = ["derive"] }

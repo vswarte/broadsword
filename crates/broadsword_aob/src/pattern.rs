@@ -1,20 +1,20 @@
 use std::num;
 
-#[derive(Debug)]
-pub struct MemoryPattern {
+#[derive(Debug, Clone)]
+pub struct Pattern {
     pub bytes: Vec<u8>,
     pub mask: Vec<bool>,
     pub length: usize,
 }
 
 #[derive(Debug)]
-pub enum MemoryPatternCreationError {
+pub enum PatternError {
     ParseError(num::ParseIntError),
     NoMatchableBytesError,
 }
 
-impl MemoryPattern {
-    pub fn from_ida_pattern(pattern: &str) -> Result<Self, MemoryPatternCreationError> {
+impl Pattern {
+    pub fn from_ida_pattern(pattern: &str) -> Result<Self, PatternError> {
         let mut bytes = Vec::new();
         let mut mask = Vec::new();
 
@@ -27,13 +27,13 @@ impl MemoryPattern {
                 mask.push(true);
                 bytes.push(
                     u8::from_str_radix(byte, 16)
-                        .map_err(MemoryPatternCreationError::ParseError)?
+                        .map_err(PatternError::ParseError)?
                 );
             }
         }
 
        if !mask.iter().any(|x| *x) {
-           return Err(MemoryPatternCreationError::NoMatchableBytesError);
+           return Err(PatternError::NoMatchableBytesError);
        }
 
         let length = bytes.len();
@@ -44,12 +44,12 @@ impl MemoryPattern {
 #[cfg(test)]
 #[allow(clippy::bool_assert_comparison)]
 mod tests {
-    use crate::pattern::MemoryPattern;
-    use crate::pattern::MemoryPatternCreationError;
+    use crate::pattern::Pattern;
+    use crate::pattern::PatternError;
 
     #[test]
     fn from_ida_pattern_works() {
-        let pattern = MemoryPattern::from_ida_pattern("12 34 ?? 78 9A").unwrap();
+        let pattern = Pattern::from_ida_pattern("12 34 ?? 78 9A").unwrap();
 
         assert_eq!(pattern.length, 5, "Indicated pattern length did not match up with input");
         assert_eq!(pattern.mask.len(), 5, "Length on the mask did not match up with input");
@@ -70,22 +70,22 @@ mod tests {
 
     #[test]
     fn from_ida_pattern_returns_error_on_invalid_hex_value() {
-        let result = MemoryPattern::from_ida_pattern("XX 34 ?? 78 9A");
+        let result = Pattern::from_ida_pattern("XX 34 ?? 78 9A");
 
-        assert!(matches!(result.unwrap_err(), MemoryPatternCreationError::ParseError {..} ));
+        assert!(matches!(result.unwrap_err(), PatternError::ParseError {..} ));
     }
 
     #[test]
     fn from_ida_pattern_returns_error_on_empty_pattern() {
-        let result = MemoryPattern::from_ida_pattern("");
+        let result = Pattern::from_ida_pattern("");
 
-        assert!(matches!(result.unwrap_err(), MemoryPatternCreationError::NoMatchableBytesError));
+        assert!(matches!(result.unwrap_err(), PatternError::NoMatchableBytesError));
     }
 
     #[test]
     fn from_ida_pattern_returns_error_on_all_wildcard_pattern() {
-        let result = MemoryPattern::from_ida_pattern("?? ?? ?? ??");
+        let result = Pattern::from_ida_pattern("?? ?? ?? ??");
 
-        assert!(matches!(result.unwrap_err(), MemoryPatternCreationError::NoMatchableBytesError));
+        assert!(matches!(result.unwrap_err(), PatternError::NoMatchableBytesError));
     }
 }
