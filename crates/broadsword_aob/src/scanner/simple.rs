@@ -1,11 +1,11 @@
 use crate::pattern::Pattern;
-use crate::scanner::Scanner;
+use crate::scanner::{Scanner, ScanResult};
 
 #[derive(Default)]
 pub struct SimpleScanner;
 
 impl Scanner for SimpleScanner {
-    fn scan(&self, scannable: &[u8], pattern: &Pattern) -> Option<usize> {
+    fn scan(&self, scannable: &[u8], pattern: &Pattern) -> Option<ScanResult> {
         let mut position_in_pattern = 0;
 
         for (position, byte) in scannable.iter().enumerate() {
@@ -15,7 +15,18 @@ impl Scanner for SimpleScanner {
             }
 
             if position_in_pattern == pattern.length - 1 {
-                return Some(position - pattern.length + 1);
+                let location = position - pattern.length + 1;
+
+                // Grab the capture group results
+                let mut captures = Vec::new();
+                for group in pattern.capture_groups.iter() {
+                    let group_start = location + group.start;
+                    let group_end = location + group.end;
+
+                    captures.push(scannable[group_start..group_end].to_vec());
+                }
+
+                return Some(ScanResult { location, captures });
             }
 
             position_in_pattern += 1;
@@ -27,13 +38,13 @@ impl Scanner for SimpleScanner {
 
 #[cfg(test)]
 mod tests {
+    use crate::scanner::Scanner;
     use crate::pattern::Pattern;
     use crate::scanner::simple::SimpleScanner;
-    use crate::scanner::Scanner;
 
     #[test]
     fn simple_scanner_behaves_with_empty_slice() {
-        let pattern = Pattern::from_ida_pattern("AA AA AA AA AA").unwrap();
+        let pattern = Pattern::from("AA AA AA AA AA").unwrap();
         let slice = Box::leak(Box::new([]));
         let result = SimpleScanner::default().scan(slice, &pattern);
 
@@ -42,7 +53,7 @@ mod tests {
 
     #[test]
     fn simple_scanner_behaves_with_too_long_of_an_aob() {
-        let pattern = Pattern::from_ida_pattern("AA AA AA AA AA").unwrap();
+        let pattern = Pattern::from("AA AA AA AA AA").unwrap();
         let slice = Box::leak(Box::new([0x00, 0x00, 0x00, 0x00]));
         let result = SimpleScanner::default().scan(slice, &pattern);
 
@@ -51,25 +62,29 @@ mod tests {
 
     #[test]
     fn simple_scanner_finds_the_pattern_1() {
-        let pattern = Pattern::from_ida_pattern("75 84 4A EF 23 24 CA 35").unwrap();
+        let pattern = Pattern::from("75 84 4A EF 23 24 CA 35").unwrap();
         let randomness = include_bytes!("../../test/random.bin");
         let result = SimpleScanner::default().scan(randomness, &pattern).unwrap();
 
-        assert_eq!(result, 1309924);
+        assert_eq!(result.location, 1309924);
+        assert_eq!(result.captures.len(), 0);
     }
 
     #[test]
     fn simple_scanner_finds_the_pattern_2() {
-        let pattern = Pattern::from_ida_pattern("B7 ?? CF D8 ?? 0A ?? 27").unwrap();
+        let pattern = Pattern::from("B7 [?? CF D8 ??] 0A ?? 27").unwrap();
         let randomness = include_bytes!("../../test/random.bin");
         let result = SimpleScanner::default().scan(randomness, &pattern).unwrap();
 
-        assert_eq!(result, 867776);
+        assert_eq!(result.location, 867776);
+        assert_eq!(result.captures.len(), 1);
+
+        assert_eq!(result.captures[0], vec![0xc6, 0xcf, 0xd8, 0x11]);
     }
 
     #[test]
     fn simple_scanner_doesnt_find_the_pattern() {
-        let pattern = Pattern::from_ida_pattern("FF FF FF FF FF FF FF FF").unwrap();
+        let pattern = Pattern::from("FF FF FF FF FF FF FF FF").unwrap();
         let randomness = include_bytes!("../../test/random.bin");
         let result = SimpleScanner::default().scan(randomness, &pattern);
 
