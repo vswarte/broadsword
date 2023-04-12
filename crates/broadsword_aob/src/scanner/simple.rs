@@ -44,7 +44,7 @@ mod tests {
 
     #[test]
     fn simple_scanner_behaves_with_empty_slice() {
-        let pattern = Pattern::from("AA AA AA AA AA").unwrap();
+        let pattern = Pattern::from_byte_slice(&[0xAA, 0xAA, 0xAA, 0xAA, 0xAA]);
         let slice = Box::leak(Box::new([]));
         let result = SimpleScanner::default().scan(slice, &pattern);
 
@@ -53,7 +53,7 @@ mod tests {
 
     #[test]
     fn simple_scanner_behaves_with_too_long_of_an_aob() {
-        let pattern = Pattern::from("AA AA AA AA AA").unwrap();
+        let pattern = Pattern::from_byte_slice(&[0xAA, 0xAA, 0xAA, 0xAA, 0xAA]);
         let slice = Box::leak(Box::new([0x00, 0x00, 0x00, 0x00]));
         let result = SimpleScanner::default().scan(slice, &pattern);
 
@@ -62,7 +62,7 @@ mod tests {
 
     #[test]
     fn simple_scanner_finds_the_pattern_1() {
-        let pattern = Pattern::from("75 84 4A EF 23 24 CA 35").unwrap();
+        let pattern = Pattern::from_byte_slice(&[0x75, 0x84, 0x4A, 0xEF, 0x23, 0x24, 0xCA, 0x35]);
         let randomness = include_bytes!("../../test/random.bin");
         let result = SimpleScanner::default().scan(randomness, &pattern).unwrap();
 
@@ -72,7 +72,7 @@ mod tests {
 
     #[test]
     fn simple_scanner_finds_the_pattern_2() {
-        let pattern = Pattern::from("B7 [?? CF D8 ??] 0A ?? 27").unwrap();
+        let pattern = Pattern::from_pattern_str("B7 [?? CF D8 ??] 0A ?? 27").unwrap();
         let randomness = include_bytes!("../../test/random.bin");
         let result = SimpleScanner::default().scan(randomness, &pattern).unwrap();
 
@@ -84,7 +84,7 @@ mod tests {
 
     #[test]
     fn simple_scanner_doesnt_find_the_pattern() {
-        let pattern = Pattern::from("FF FF FF FF FF FF FF FF").unwrap();
+        let pattern = Pattern::from_byte_slice(&[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
         let randomness = include_bytes!("../../test/random.bin");
         let result = SimpleScanner::default().scan(randomness, &pattern);
 

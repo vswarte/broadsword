@@ -12,8 +12,28 @@ pub struct Pattern {
 }
 
 impl Pattern {
-    pub fn from(pattern: &str) -> Result<Self, parser::ParserError> {
+    /// Parses a pattern string to a pattern used for searching.
+    pub fn from_pattern_str(pattern: &str) -> Result<Self, parser::ParserError> {
         parser::parse_pattern(pattern)
+    }
+
+    /// Wraps `from_pattern_str`. Drops the input `String` after creation of pattern.
+    pub fn from_pattern_string(pattern: String) -> Result<Self, parser::ParserError> {
+        parser::parse_pattern(pattern.as_str())
+    }
+
+    /// Constructs a pattern from a byte slice. Assumes a mask where all bytes are matched.
+    pub fn from_byte_vec(bytes: Vec<u8>) -> Self {
+        let length = bytes.len();
+        let mask = vec![true; length];
+        let capture_groups = vec![];
+
+        Self { bytes, mask, length, capture_groups }
+    }
+
+    /// Wraps `from_byte_vec` and copies the `bytes` slice.
+    pub fn from_byte_slice(bytes: &[u8]) -> Self {
+        Self::from_byte_vec(bytes.to_vec())
     }
 }
 
@@ -25,7 +45,7 @@ mod tests {
 
     #[test]
     fn from_works_1() {
-        let pattern = Pattern::from("12 [34 ??] 78 [9A]").unwrap();
+        let pattern = Pattern::from_pattern_str("12 [34 ??] 78 [9A]").unwrap();
 
         assert_eq!(
             pattern.length, 5,
@@ -68,7 +88,7 @@ mod tests {
 
     #[test]
     fn from_returns_error_on_invalid_hex_value() {
-        let result = Pattern::from("XX 34 ?? 78 9A");
+        let result = Pattern::from_pattern_str("XX 34 ?? 78 9A");
 
         assert!(matches!(
             result.unwrap_err(),
@@ -78,7 +98,7 @@ mod tests {
 
     #[test]
     fn from_returns_error_on_already_opened_capture_group() {
-        let result = Pattern::from("12[34[56]");
+        let result = Pattern::from_pattern_str("12[34[56]");
 
         assert!(matches!(
             result.unwrap_err(),
@@ -88,7 +108,7 @@ mod tests {
 
     #[test]
     fn from_returns_error_on_not_yet_opened_capture_group() {
-        let result = Pattern::from("12]34[56]");
+        let result = Pattern::from_pattern_str("12]34[56]");
 
         assert!(matches!(
             result.unwrap_err(),
