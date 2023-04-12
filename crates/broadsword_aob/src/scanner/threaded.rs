@@ -34,6 +34,36 @@ impl Scanner for ThreadedScanner {
 
         None
     }
+
+
+    fn scan_multiple(&self, scannable: &'static [u8], pattern: &Pattern) -> Vec<ScanResult> {
+        let chunks = split_scannable(scannable, self.thread_count, pattern.length - 1);
+
+        let mut thread_handles = Vec::new();
+        for (offset, chunk) in chunks.into_iter() {
+            let pattern = pattern.clone();
+
+            let handle = std::thread::spawn(move || SimpleScanner::default().scan_multiple(chunk, &pattern));
+
+            thread_handles.push((offset, handle));
+        }
+
+        let mut results = vec![];
+
+        for handle in thread_handles {
+            let scan_results = handle.1.join()
+                .unwrap()
+                .into_iter()
+                .map(|r| ScanResult { location: r.location + handle.0, captures: r.captures })
+                .collect::<Vec<ScanResult>>();
+
+            for result in scan_results {
+                results.push(result);
+            }
+        }
+
+        results
+    }
 }
 
 impl ThreadedScanner {

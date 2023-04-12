@@ -5,6 +5,7 @@ pub mod threaded;
 
 pub trait Scanner {
     fn scan(&self, scannable: &'static [u8], pattern: &Pattern) -> Option<ScanResult>;
+    fn scan_multiple(&self, scannable: &'static [u8], pattern: &Pattern) -> Vec<ScanResult>;
 }
 
 #[derive(Debug, PartialEq)]

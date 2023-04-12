@@ -34,6 +34,34 @@ impl Scanner for SimpleScanner {
 
         None
     }
+
+    fn scan_multiple(&self, scannable: &'static [u8], pattern: &Pattern) -> Vec<ScanResult> {
+        let mut offset = 0;
+        let mut results = vec![];
+
+        loop {
+            // Run normal scan from offset
+            let result = self.scan(&scannable[offset..scannable.len()], pattern);
+
+
+            // If no result were found `scan` went up to the end and we've reached the end.
+            if result.is_none() {
+                break;
+            }
+
+            let found = result.unwrap();
+            // Create a new result object to rebase the location
+            results.push(ScanResult {
+                location: found.location + offset,
+                captures: found.captures,
+            });
+
+            // Update the search offset if a result was found so we don't find the same entry again
+            offset = found.location + 1;
+        }
+
+        results
+    }
 }
 
 #[cfg(test)]
