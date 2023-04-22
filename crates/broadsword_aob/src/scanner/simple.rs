@@ -1,5 +1,5 @@
 use crate::pattern::Pattern;
-use crate::scanner::{GroupScanner, Scanner};
+use crate::scanner::Scanner;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{SendError, Sender};
 use std::sync::Arc;
@@ -132,7 +132,7 @@ impl SimpleScanner {
 mod tests {
     use crate::pattern::Pattern;
     use crate::scanner::simple::SimpleScanner;
-    use crate::scanner::{GroupScanner, Scanner};
+    use crate::scanner::Scanner;
 
     #[test]
     fn simple_scanner_behaves_with_empty_slice() {

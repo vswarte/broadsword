@@ -1,9 +1,9 @@
 use crate::pattern::Pattern;
 use crate::scanner::simple::SimpleScanner;
-use crate::scanner::{GroupScanner, Scanner};
+use crate::scanner::Scanner;
 use crate::util::split_scannable;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{Receiver, SendError, Sender};
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc};
 use std::thread;
 
@@ -46,7 +46,7 @@ impl ThreadedScanner {
         let stop = Arc::new(AtomicBool::new(false));
 
         for (offset, chunk) in chunks.into_iter() {
-            let mut pattern = patterns.clone();
+            let pattern = patterns.clone();
             let sender = sx.clone();
             let stop_thread = stop.clone();
 
@@ -108,7 +108,7 @@ impl Default for ThreadedScanner {
 mod tests {
     use crate::pattern::Pattern;
     use crate::scanner::threaded::ThreadedScanner;
-    use crate::scanner::{GroupScanner, Scanner};
+    use crate::scanner::Scanner;
 
     #[test]
     fn thread_scanner_defaults_to_available_parallelism() {
