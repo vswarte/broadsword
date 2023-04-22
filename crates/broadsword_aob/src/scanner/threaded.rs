@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, mpsc};
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender, SendError};
 use std::thread;
 use crate::pattern::Pattern;
 use crate::scanner::simple::SimpleScanner;
@@ -43,14 +43,15 @@ impl ThreadedScanner {
         let chunks = split_scannable(scannable, self.thread_count, length);
 
         let mut thread_handles = Vec::new();
-        let (sx, rx): (Sender<Pattern>, Receiver<Pattern>) = mpsc::channel();
-        let finished = AtomicBool::new(false);
+        let (sx, rx): (Sender<Option<Pattern>>, Receiver<Option<Pattern>>) = mpsc::channel();
+        let finished = Arc::new(AtomicBool::new(false));
 
         for (offset, chunk) in chunks.into_iter() {
             let mut pattern = patterns.clone();
             let sender = sx.clone();
+            let end = finished.clone();
 
-            let handle = thread::spawn(move || SimpleScanner::default().multi_group_scan(chunk, offset, pattern, sender, &finished));
+            let handle = thread::spawn(move || SimpleScanner::default().multi_group_scan(chunk, offset, pattern, sender, end));
 
             thread_handles.push(handle);
         }
@@ -59,9 +60,11 @@ impl ThreadedScanner {
 
         for found_item in rx {
             // Push to result vec
-            results.push(found_item);
+            if let Some(found) = found_item {
+                results.push(found);
+            }
 
-            if results.len() == patterns.len() {
+            if results.len() == patterns.len() || thread_handles.iter().all(|t| t.is_finished())  {
 
                 // Cancel threads by setting atomic flag
                 finished.store(true, Ordering::Relaxed);
@@ -71,7 +74,9 @@ impl ThreadedScanner {
 
         // Wait for the threads to complete any remaining work
         for thread in thread_handles {
-            thread.join().expect("The child thread panicked");
+            match thread.join().expect("The child thread panicked") {
+                _ => {}
+            };
         }
 
         results
@@ -151,6 +156,7 @@ mod tests {
         let mut patterns = Vec::with_capacity(5);
         patterns.push(Pattern::from_ida_pattern("75 84 4A EF 23 24 CA 35").unwrap());
         patterns.push(Pattern::from_ida_pattern("B7 ?? CF D8 ?? 0A ?? 27").unwrap());
+        patterns.push(Pattern::from_ida_pattern("AA BB CC DD EE FF 00 11").unwrap());
         let randomness = include_bytes!("../../test/random.bin");
         let result = ThreadedScanner::new_with_thread_count(4)
             .group_scan(
@@ -158,8 +164,8 @@ mod tests {
                 patterns.clone(),
             );
 
-        assert_eq!(result[0].offset.unwrap_or_default(), 867776);
-        assert_eq!(result[1].offset.unwrap_or_default(), 1309924);
+        assert_eq!(result[0].offset.unwrap_or_default(), 1309924);
+        assert_eq!(result[1].offset.unwrap_or_default(), 867776);
     }
 
     #[test]

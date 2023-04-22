@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::{Sender, SendError};
 use crate::pattern::Pattern;
 use crate::scanner::{GroupScanner, Scanner};
 
@@ -70,7 +70,7 @@ impl SimpleScanner {
         patterns
     }
 
-    pub fn multi_group_scan(&self, scannable: &[u8], offset: usize, mut patterns: Vec<Pattern>, sender: Sender<Pattern>, finished: &AtomicBool) -> Vec<Pattern> {
+    pub fn multi_group_scan(&self, scannable: &[u8], offset: usize, mut patterns: Vec<Pattern>, sender: Sender<Option<Pattern>>, finished: Arc<AtomicBool>) -> Result<(),SendError<Option<Pattern>>> {
         let mut context = Vec::with_capacity(patterns.len());
 
         for position in 0..scannable.len() {
@@ -94,7 +94,7 @@ impl SimpleScanner {
 
                     if position_in_pattern == pattern.length - 1 {
                         pattern.offset = Some(offset + position);
-                        sender.send(pattern.clone());
+                        sender.send(Some(pattern.clone()))?;
                         context[i] = true;
                     }
                 }
@@ -106,10 +106,11 @@ impl SimpleScanner {
                 position_in_pattern += 1;
             }
             if finished.load(Ordering::Relaxed) {
-                break;
+                return Ok(());
             }
         }
-        patterns
+        sender.send(None)?;
+        Ok(())
     }
 }
 
