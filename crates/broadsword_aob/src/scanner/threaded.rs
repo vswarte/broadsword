@@ -1,6 +1,7 @@
+use std::ops::Deref;
 use crate::pattern::Pattern;
 use crate::scanner::simple::SimpleScanner;
-use crate::scanner::Scanner;
+use crate::scanner::{GroupScanner, Scanner};
 use crate::util::split_scannable;
 
 pub struct ThreadedScanner {
@@ -15,7 +16,7 @@ impl Scanner for ThreadedScanner {
         for (offset, chunk) in chunks.into_iter() {
             let pattern = pattern.clone();
 
-            let handle = std::thread::spawn(move || SimpleScanner::new().scan(chunk, &pattern));
+            let handle = std::thread::spawn(move || SimpleScanner.scan(chunk, &pattern));
 
             thread_handles.push((offset, handle));
         }
@@ -29,6 +30,35 @@ impl Scanner for ThreadedScanner {
         }
 
         None
+    }
+}
+
+
+impl GroupScanner for ThreadedScanner {
+    fn group_scan(&self, scannable: &'static [u8], patterns: Vec<Pattern>) -> Vec<Pattern> {
+        let length = patterns.iter().max_by_key(|p| p.length).unwrap().length - 1;
+        let chunks = split_scannable(scannable, self.thread_count, length);
+
+        let mut thread_handles = Vec::new();
+        for (offset, chunk) in chunks.into_iter() {
+            let mut pattern = patterns.clone();
+
+            let handle = std::thread::spawn(move || SimpleScanner.group_scan(chunk, pattern));
+
+            thread_handles.push((offset, handle));
+        }
+
+        let mut results = Vec::with_capacity(patterns.len());
+        for handle in thread_handles {
+            let mut result = handle.1.join().unwrap().into_iter().filter(|p| p.offset.is_some()).collect::<Vec<Pattern>>();
+
+            for res in &mut result {
+                res.offset = Some(res.offset.unwrap() + handle.0)
+            }
+            results.append(&mut result);
+        }
+
+        results
     }
 }
 
@@ -48,7 +78,7 @@ impl ThreadedScanner {
 mod tests {
     use crate::pattern::Pattern;
     use crate::scanner::threaded::ThreadedScanner;
-    use crate::scanner::Scanner;
+    use crate::scanner::{GroupScanner, Scanner};
 
     #[test]
     fn thread_scanner_defaults_to_available_parallelism() {
@@ -98,6 +128,22 @@ mod tests {
             .unwrap();
 
         assert_eq!(result, 867776);
+    }
+
+    #[test]
+    fn threaded_scanner_finds_the_patterns() {
+        let mut patterns = Vec::with_capacity(5);
+        patterns.push(Pattern::from_ida_pattern("75 84 4A EF 23 24 CA 35").unwrap());
+        patterns.push(Pattern::from_ida_pattern("B7 ?? CF D8 ?? 0A ?? 27").unwrap());
+        let randomness = include_bytes!("../../test/random.bin");
+        let result = ThreadedScanner::new_with_thread_count(4)
+            .group_scan(
+                randomness,
+                patterns.clone(),
+            );
+
+        assert_eq!(result[0].offset.unwrap_or_default(), 867776);
+        assert_eq!(result[1].offset.unwrap_or_default(), 1309924);
     }
 
     #[test]

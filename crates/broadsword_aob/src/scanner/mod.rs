@@ -6,5 +6,9 @@ trait Scanner {
     fn scan(&self, scannable: &'static [u8], pattern: &Pattern) -> Option<usize>;
 }
 
+trait GroupScanner {
+    fn group_scan(&self, scannable: &'static [u8], patterns: Vec<Pattern>) -> Vec<Pattern>;
+}
+
 pub mod simple;
 pub mod threaded;

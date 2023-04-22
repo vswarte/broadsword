@@ -5,6 +5,7 @@ pub struct Pattern {
     pub bytes: Vec<u8>,
     pub mask: Vec<bool>,
     pub length: usize,
+    pub offset: Option<usize>
 }
 
 #[derive(Debug)]
@@ -38,6 +39,7 @@ impl Pattern {
             bytes,
             mask,
             length,
+            offset: None,
         })
     }
 }

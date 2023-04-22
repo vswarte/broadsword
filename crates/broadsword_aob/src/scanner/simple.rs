@@ -1,5 +1,5 @@
 use crate::pattern::Pattern;
-use crate::scanner::Scanner;
+use crate::scanner::{GroupScanner, Scanner};
 
 pub struct SimpleScanner;
 
@@ -23,6 +23,48 @@ impl Scanner for SimpleScanner {
         None
     }
 }
+
+impl GroupScanner for SimpleScanner {
+    fn group_scan(&self, scannable: &[u8], mut patterns: Vec<Pattern>) -> Vec<Pattern> {
+        let mut context = Vec::with_capacity(patterns.len());
+
+        for position in 0..scannable.len() {
+            let mut position_in_pattern = 0;
+            context.clear();
+            context.resize(patterns.len(), false );
+
+            for byte in scannable[position..].iter() {
+
+                for (i, pattern) in patterns.iter_mut().enumerate() {
+                    if context[i] {
+                        continue;
+                    }
+
+                    if pattern.offset.is_some() || (pattern.mask[position_in_pattern] && pattern.bytes[position_in_pattern] != *byte) {
+                        context[i] = true;
+                        continue;
+                    }
+
+                    if position_in_pattern == pattern.length - 1 {
+                        pattern.offset = Some(position);
+                        context[i] = true;
+                    }
+                }
+
+                if context.iter().all(|b| *b) {
+                    break;
+                }
+
+                position_in_pattern += 1;
+            }
+            if patterns.iter().all(|p| p.offset.is_some()) {
+                break;
+            }
+        }
+        patterns
+    }
+}
+
 
 impl SimpleScanner {
     pub fn new() -> Self {
