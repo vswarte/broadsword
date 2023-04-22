@@ -43,7 +43,7 @@ impl ThreadedScanner {
         let chunks = split_scannable(scannable, self.thread_count, length);
 
         let mut thread_handles = Vec::new();
-        let (sx, rx): (Sender<Option<Pattern>>, Receiver<Option<Pattern>>) = mpsc::channel();
+        let (sx, rx): (Sender<Pattern>, Receiver<Pattern>) = mpsc::channel();
         let stop = Arc::new(AtomicBool::new(false));
 
         for (offset, chunk) in chunks.into_iter() {
@@ -56,15 +56,13 @@ impl ThreadedScanner {
             thread_handles.push(handle);
         }
 
+        drop(sx);
         let mut results = Vec::with_capacity(patterns.len());
-
         for found_item in rx {
             // Push to result vec
-            if let Some(found) = found_item {
-                results.push(found);
-            }
+            results.push(found_item);
 
-            if results.len() == patterns.len() || thread_handles.iter().all(|t| t.is_finished())  {
+            if results.len() == patterns.len() {
                 // Cancel threads by setting atomic flag
                 stop.store(true, Ordering::Relaxed);
                 break;
@@ -74,7 +72,8 @@ impl ThreadedScanner {
         // Wait for the threads to complete any remaining work
         for thread in thread_handles {
             match thread.join().expect("The child thread panicked") {
-                _ => {}
+                Err(_) => println!("Thread failed to send and quit early!"),
+                _ => { },
             };
         }
 
