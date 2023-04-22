@@ -44,14 +44,14 @@ impl ThreadedScanner {
 
         let mut thread_handles = Vec::new();
         let (sx, rx): (Sender<Option<Pattern>>, Receiver<Option<Pattern>>) = mpsc::channel();
-        let finished = Arc::new(AtomicBool::new(false));
+        let stop = Arc::new(AtomicBool::new(false));
 
         for (offset, chunk) in chunks.into_iter() {
             let mut pattern = patterns.clone();
             let sender = sx.clone();
-            let end = finished.clone();
+            let stop_thread = stop.clone();
 
-            let handle = thread::spawn(move || SimpleScanner::default().multi_group_scan(chunk, offset, pattern, sender, end));
+            let handle = thread::spawn(move || SimpleScanner::default().multi_group_scan(chunk, offset, pattern, sender, stop_thread));
 
             thread_handles.push(handle);
         }
@@ -65,9 +65,8 @@ impl ThreadedScanner {
             }
 
             if results.len() == patterns.len() || thread_handles.iter().all(|t| t.is_finished())  {
-
                 // Cancel threads by setting atomic flag
-                finished.store(true, Ordering::Relaxed);
+                stop.store(true, Ordering::Relaxed);
                 break;
             }
         }
@@ -156,6 +155,24 @@ mod tests {
         let mut patterns = Vec::with_capacity(5);
         patterns.push(Pattern::from_ida_pattern("75 84 4A EF 23 24 CA 35").unwrap());
         patterns.push(Pattern::from_ida_pattern("B7 ?? CF D8 ?? 0A ?? 27").unwrap());
+        let randomness = include_bytes!("../../test/random.bin");
+        let result = ThreadedScanner::new_with_thread_count(4)
+            .group_scan(
+                randomness,
+                patterns.clone(),
+            );
+
+        let valid = vec![1309924, 867776];
+        assert_eq!(result.len(), 2);
+        assert!(valid.contains(&result[0].offset.unwrap()));
+        assert!(valid.contains(&result[1].offset.unwrap()));
+    }
+
+    #[test]
+    fn threaded_scanner_finds_the_patterns_except_one() {
+        let mut patterns = Vec::with_capacity(5);
+        patterns.push(Pattern::from_ida_pattern("75 84 4A EF 23 24 CA 35").unwrap());
+        patterns.push(Pattern::from_ida_pattern("B7 ?? CF D8 ?? 0A ?? 27").unwrap());
         patterns.push(Pattern::from_ida_pattern("AA BB CC DD EE FF 00 11").unwrap());
         let randomness = include_bytes!("../../test/random.bin");
         let result = ThreadedScanner::new_with_thread_count(4)
@@ -164,8 +181,10 @@ mod tests {
                 patterns.clone(),
             );
 
-        assert_eq!(result[0].offset.unwrap_or_default(), 1309924);
-        assert_eq!(result[1].offset.unwrap_or_default(), 867776);
+        let valid = vec![1309924, 867776];
+        assert_eq!(result.len(), 2);
+        assert!(valid.contains(&result[0].offset.unwrap()));
+        assert!(valid.contains(&result[1].offset.unwrap()));
     }
 
     #[test]

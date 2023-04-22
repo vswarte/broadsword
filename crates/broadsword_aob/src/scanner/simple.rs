@@ -70,7 +70,7 @@ impl SimpleScanner {
         patterns
     }
 
-    pub fn multi_group_scan(&self, scannable: &[u8], offset: usize, mut patterns: Vec<Pattern>, sender: Sender<Option<Pattern>>, finished: Arc<AtomicBool>) -> Result<(),SendError<Option<Pattern>>> {
+    pub fn multi_group_scan(&self, scannable: &[u8], offset: usize, mut patterns: Vec<Pattern>, sender: Sender<Option<Pattern>>, stop_thread: Arc<AtomicBool>) -> Result<(),SendError<Option<Pattern>>> {
         let mut context = Vec::with_capacity(patterns.len());
 
         for position in 0..scannable.len() {
@@ -105,7 +105,7 @@ impl SimpleScanner {
 
                 position_in_pattern += 1;
             }
-            if finished.load(Ordering::Relaxed) {
+            if stop_thread.load(Ordering::Relaxed) {
                 return Ok(());
             }
         }
