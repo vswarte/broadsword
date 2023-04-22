@@ -1,11 +1,11 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, mpsc};
-use std::sync::mpsc::{Receiver, Sender, SendError};
-use std::thread;
 use crate::pattern::Pattern;
 use crate::scanner::simple::SimpleScanner;
 use crate::scanner::{GroupScanner, Scanner};
 use crate::util::split_scannable;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{Receiver, SendError, Sender};
+use std::sync::{mpsc, Arc};
+use std::thread;
 
 pub struct ThreadedScanner {
     pub thread_count: usize,
@@ -36,7 +36,6 @@ impl Scanner for ThreadedScanner {
     }
 }
 
-
 impl ThreadedScanner {
     pub fn group_scan(&self, scannable: &'static [u8], patterns: Vec<Pattern>) -> Vec<Pattern> {
         let length = patterns.iter().max_by_key(|p| p.length).unwrap().length - 1;
@@ -51,14 +50,20 @@ impl ThreadedScanner {
             let sender = sx.clone();
             let stop_thread = stop.clone();
 
-            let handle = thread::spawn(move || SimpleScanner::default().threaded_group_scan(chunk, offset, pattern, sender, stop_thread));
+            let handle = thread::spawn(move || {
+                SimpleScanner::default().threaded_group_scan(
+                    chunk,
+                    offset,
+                    pattern,
+                    sender,
+                    stop_thread,
+                )
+            });
 
             thread_handles.push(handle);
         }
 
-        // Manually drop sx so that all of the senders get dropped when the threads finish.
         drop(sx);
-
         // Collect the results.
         let mut results = Vec::with_capacity(patterns.len());
         for found_item in rx {
@@ -78,8 +83,8 @@ impl ThreadedScanner {
                 Err(p) => {
                     results.push(p.0);
                     println!("Thread failed to send, and quit out early. Some AOBs may be missing!")
-                },
-                _ => { },
+                }
+                _ => {}
             };
         }
 
@@ -161,11 +166,7 @@ mod tests {
         patterns.push(Pattern::from_ida_pattern("75 84 4A EF 23 24 CA 35").unwrap());
         patterns.push(Pattern::from_ida_pattern("B7 ?? CF D8 ?? 0A ?? 27").unwrap());
         let randomness = include_bytes!("../../test/random.bin");
-        let result = ThreadedScanner::new_with_thread_count(4)
-            .group_scan(
-                randomness,
-                patterns.clone(),
-            );
+        let result = ThreadedScanner::new_with_thread_count(4).group_scan(randomness, patterns);
 
         let valid = vec![1309924, 867776];
         assert_eq!(result.len(), 2);
@@ -180,11 +181,7 @@ mod tests {
         patterns.push(Pattern::from_ida_pattern("B7 ?? CF D8 ?? 0A ?? 27").unwrap());
         patterns.push(Pattern::from_ida_pattern("AA BB CC DD EE FF 00 11").unwrap());
         let randomness = include_bytes!("../../test/random.bin");
-        let result = ThreadedScanner::new_with_thread_count(4)
-            .group_scan(
-                randomness,
-                patterns.clone(),
-            );
+        let result = ThreadedScanner::new_with_thread_count(4).group_scan(randomness, patterns);
 
         let valid = vec![1309924, 867776];
         assert_eq!(result.len(), 2);

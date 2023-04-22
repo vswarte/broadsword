@@ -1,8 +1,8 @@
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{Sender, SendError};
 use crate::pattern::Pattern;
 use crate::scanner::{GroupScanner, Scanner};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{SendError, Sender};
+use std::sync::Arc;
 
 #[derive(Default)]
 pub struct SimpleScanner;
@@ -46,7 +46,7 @@ impl SimpleScanner {
 
                     if pattern.offset.is_some()
                         || (pattern.mask[position_in_pattern]
-                        && pattern.bytes[position_in_pattern] != *byte)
+                            && pattern.bytes[position_in_pattern] != *byte)
                     {
                         context[i] = true;
                         continue;
@@ -72,7 +72,14 @@ impl SimpleScanner {
         results
     }
 
-    pub fn threaded_group_scan(&self, scannable: &[u8], offset: usize, mut patterns: Vec<Pattern>, sender: Sender<Pattern>, stop_thread: Arc<AtomicBool>) -> Result<(),SendError<Pattern>> {
+    pub fn threaded_group_scan(
+        &self,
+        scannable: &[u8],
+        offset: usize,
+        mut patterns: Vec<Pattern>,
+        sender: Sender<Pattern>,
+        stop_thread: Arc<AtomicBool>,
+    ) -> Result<(), SendError<Pattern>> {
         let mut context = Vec::with_capacity(patterns.len());
 
         for position in 0..scannable.len() {
@@ -88,7 +95,7 @@ impl SimpleScanner {
 
                     if pattern.offset.is_some()
                         || (pattern.mask[position_in_pattern]
-                        && pattern.bytes[position_in_pattern] != *byte)
+                            && pattern.bytes[position_in_pattern] != *byte)
                     {
                         context[i] = true;
                         continue;
@@ -201,4 +208,3 @@ mod tests {
         assert_eq!(result, None);
     }
 }
-

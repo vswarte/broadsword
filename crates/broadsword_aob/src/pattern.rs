@@ -5,13 +5,23 @@ pub struct Pattern {
     pub bytes: Vec<u8>,
     pub mask: Vec<bool>,
     pub length: usize,
-    pub offset: Option<usize>
+    pub offset: Option<usize>,
 }
 
 #[derive(Debug)]
 pub enum PatternError {
     ParseError(num::ParseIntError),
     NoMatchableBytesError,
+}
+
+impl PartialEq for Pattern {
+    fn eq(&self, other: &Self) -> bool {
+        if self.length != other.length {
+            return false;
+        }
+
+        self.bytes == other.bytes && self.mask == other.mask
+    }
 }
 
 impl Pattern {
