@@ -109,7 +109,6 @@ impl SimpleScanner {
                 return Ok(());
             }
         }
-        //sender.send(None)?;
         Ok(())
     }
 }

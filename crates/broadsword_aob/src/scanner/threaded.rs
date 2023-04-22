@@ -56,7 +56,10 @@ impl ThreadedScanner {
             thread_handles.push(handle);
         }
 
+        // Manually drop sx so that all of the senders get dropped when the threads finish.
         drop(sx);
+
+        // Collect the results.
         let mut results = Vec::with_capacity(patterns.len());
         for found_item in rx {
             // Push to result vec
@@ -72,7 +75,10 @@ impl ThreadedScanner {
         // Wait for the threads to complete any remaining work
         for thread in thread_handles {
             match thread.join().expect("The child thread panicked") {
-                Err(_) => println!("Thread failed to send and quit early!"),
+                Err(p) => {
+                    results.push(p.0);
+                    println!("Thread failed to send, and quit out early. Some AOBs may be missing!")
+                },
                 _ => { },
             };
         }
