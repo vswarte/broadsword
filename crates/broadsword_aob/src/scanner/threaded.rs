@@ -37,7 +37,7 @@ impl Scanner for ThreadedScanner {
 }
 
 impl ThreadedScanner {
-    pub fn group_scan(&self, scannable: &'static [u8], patterns: Vec<Pattern>) -> Vec<Pattern> {
+    pub fn group_scan(&self, scannable: &'static [u8], patterns: &Vec<Pattern>) -> Vec<Pattern> {
         let length = patterns.iter().max_by_key(|p| p.length).unwrap().length - 1;
         let chunks = split_scannable(scannable, self.thread_count, length);
 
@@ -49,11 +49,19 @@ impl ThreadedScanner {
             recv = rx;
 
             for (offset, chunk) in chunks.into_iter() {
-                let mut pattern = patterns.clone();
+                let pattern = patterns.clone();
                 let sender = sx.clone();
                 let stop_thread = stop.clone();
 
-                let handle = thread::spawn(move || SimpleScanner::default().threaded_group_scan(chunk, offset, pattern, sender, stop_thread));
+                let handle = thread::spawn(move || {
+                    SimpleScanner::default().threaded_group_scan(
+                        chunk,
+                        offset,
+                        pattern,
+                        sender,
+                        stop_thread,
+                    )
+                });
 
                 thread_handles.push(handle);
             }
@@ -161,7 +169,7 @@ mod tests {
         patterns.push(Pattern::from_ida_pattern("75 84 4A EF 23 24 CA 35").unwrap());
         patterns.push(Pattern::from_ida_pattern("B7 ?? CF D8 ?? 0A ?? 27").unwrap());
         let randomness = include_bytes!("../../test/random.bin");
-        let result = ThreadedScanner::new_with_thread_count(4).group_scan(randomness, patterns);
+        let result = ThreadedScanner::new_with_thread_count(4).group_scan(randomness, &patterns);
 
         let valid = vec![1309924, 867776];
         assert_eq!(result.len(), 2);
@@ -176,7 +184,7 @@ mod tests {
         patterns.push(Pattern::from_ida_pattern("B7 ?? CF D8 ?? 0A ?? 27").unwrap());
         patterns.push(Pattern::from_ida_pattern("AA BB CC DD EE FF 00 11").unwrap());
         let randomness = include_bytes!("../../test/random.bin");
-        let result = ThreadedScanner::new_with_thread_count(4).group_scan(randomness, patterns);
+        let result = ThreadedScanner::new_with_thread_count(4).group_scan(randomness, &patterns);
 
         let valid = vec![1309924, 867776];
         assert_eq!(result.len(), 2);
