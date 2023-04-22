@@ -1,3 +1,6 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, mpsc};
+use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 use crate::pattern::Pattern;
 use crate::scanner::simple::SimpleScanner;
@@ -34,28 +37,41 @@ impl Scanner for ThreadedScanner {
 }
 
 
-impl GroupScanner for ThreadedScanner {
-    fn group_scan(&self, scannable: &'static [u8], patterns: Vec<Pattern>) -> Vec<Pattern> {
+impl ThreadedScanner {
+    pub fn group_scan(&self, scannable: &'static [u8], patterns: Vec<Pattern>) -> Vec<Pattern> {
         let length = patterns.iter().max_by_key(|p| p.length).unwrap().length - 1;
         let chunks = split_scannable(scannable, self.thread_count, length);
 
         let mut thread_handles = Vec::new();
+        let (sx, rx): (Sender<Pattern>, Receiver<Pattern>) = mpsc::channel();
+        let finished = AtomicBool::new(false);
+
         for (offset, chunk) in chunks.into_iter() {
             let mut pattern = patterns.clone();
+            let sender = sx.clone();
 
-            let handle = std::thread::spawn(move || SimpleScanner.group_scan(chunk, pattern));
+            let handle = thread::spawn(move || SimpleScanner::default().multi_group_scan(chunk, offset, pattern, sender, &finished));
 
-            thread_handles.push((offset, handle));
+            thread_handles.push(handle);
         }
 
         let mut results = Vec::with_capacity(patterns.len());
-        for handle in thread_handles {
-            let mut result = handle.1.join().unwrap().into_iter().filter(|p| p.offset.is_some()).collect::<Vec<Pattern>>();
 
-            for res in &mut result {
-                res.offset = Some(res.offset.unwrap() + handle.0)
+        for found_item in rx {
+            // Push to result vec
+            results.push(found_item);
+
+            if results.len() == patterns.len() {
+
+                // Cancel threads by setting atomic flag
+                finished.store(true, Ordering::Relaxed);
+                break;
             }
-            results.append(&mut result);
+        }
+
+        // Wait for the threads to complete any remaining work
+        for thread in thread_handles {
+            thread.join().expect("The child thread panicked");
         }
 
         results
