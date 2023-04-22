@@ -29,8 +29,9 @@ impl Scanner for SimpleScanner {
 }
 
 impl SimpleScanner {
-    pub fn group_scan(&self, scannable: &[u8], mut patterns: Vec<Pattern>) -> Vec<Pattern> {
+    pub fn group_scan(&self, scannable: &[u8], patterns: &mut Vec<Pattern>) -> Vec<Pattern> {
         let mut context = Vec::with_capacity(patterns.len());
+        let mut results = vec![];
 
         for position in 0..scannable.len() {
             let mut position_in_pattern = 0;
@@ -53,6 +54,7 @@ impl SimpleScanner {
 
                     if position_in_pattern == pattern.length - 1 {
                         pattern.offset = Some(position);
+                        results.push(pattern.clone());
                         context[i] = true;
                     }
                 }
@@ -67,10 +69,10 @@ impl SimpleScanner {
                 break;
             }
         }
-        patterns
+        results
     }
 
-    pub fn multi_group_scan(&self, scannable: &[u8], offset: usize, mut patterns: Vec<Pattern>, sender: Sender<Pattern>, stop_thread: Arc<AtomicBool>) -> Result<(),SendError<Pattern>> {
+    pub fn threaded_group_scan(&self, scannable: &[u8], offset: usize, mut patterns: Vec<Pattern>, sender: Sender<Pattern>, stop_thread: Arc<AtomicBool>) -> Result<(),SendError<Pattern>> {
         let mut context = Vec::with_capacity(patterns.len());
 
         for position in 0..scannable.len() {
@@ -167,10 +169,27 @@ mod tests {
         patterns.push(Pattern::from_ida_pattern("75 84 4A EF 23 24 CA 35").unwrap());
         patterns.push(Pattern::from_ida_pattern("B7 ?? CF D8 ?? 0A ?? 27").unwrap());
         let randomness = include_bytes!("../../test/random.bin");
-        let result = SimpleScanner::default().group_scan(randomness, patterns);
+        let result = SimpleScanner::default().group_scan(randomness, &mut patterns);
 
-        assert_eq!(result[0].offset.unwrap_or_default(), 1309924);
-        assert_eq!(result[1].offset.unwrap_or_default(), 867776);
+        let valid = vec![1309924, 867776];
+        assert_eq!(result.len(), 2);
+        assert!(valid.contains(&result[0].offset.unwrap()));
+        assert!(valid.contains(&result[1].offset.unwrap()));
+    }
+
+    #[test]
+    fn simple_scanner_finds_the_patterns_except_one() {
+        let mut patterns = Vec::with_capacity(5);
+        patterns.push(Pattern::from_ida_pattern("75 84 4A EF 23 24 CA 35").unwrap());
+        patterns.push(Pattern::from_ida_pattern("B7 ?? CF D8 ?? 0A ?? 27").unwrap());
+        patterns.push(Pattern::from_ida_pattern("AA BB CC DD EE FF 00 11").unwrap());
+        let randomness = include_bytes!("../../test/random.bin");
+        let result = SimpleScanner::default().group_scan(randomness, &mut patterns);
+
+        let valid = vec![1309924, 867776];
+        assert_eq!(result.len(), 2);
+        assert!(valid.contains(&result[0].offset.unwrap()));
+        assert!(valid.contains(&result[1].offset.unwrap()));
     }
 
     #[test]

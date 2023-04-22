@@ -51,7 +51,7 @@ impl ThreadedScanner {
             let sender = sx.clone();
             let stop_thread = stop.clone();
 
-            let handle = thread::spawn(move || SimpleScanner::default().multi_group_scan(chunk, offset, pattern, sender, stop_thread));
+            let handle = thread::spawn(move || SimpleScanner::default().threaded_group_scan(chunk, offset, pattern, sender, stop_thread));
 
             thread_handles.push(handle);
         }
