@@ -1,6 +1,7 @@
 use crate::pattern::Pattern;
 use crate::scanner::{GroupScanner, Scanner};
 
+#[derive(Default)]
 pub struct SimpleScanner;
 
 impl Scanner for SimpleScanner {
@@ -82,7 +83,7 @@ mod tests {
     fn simple_scanner_behaves_with_empty_slice() {
         let pattern = Pattern::from_ida_pattern("AA AA AA AA AA").unwrap();
         let slice = Box::leak(Box::new([]));
-        let result = SimpleScanner::new().scan(slice, &pattern);
+        let result = SimpleScanner::default().scan(slice, &pattern);
 
         assert_eq!(result, None);
     }
@@ -91,7 +92,7 @@ mod tests {
     fn simple_scanner_behaves_with_too_long_of_an_aob() {
         let pattern = Pattern::from_ida_pattern("AA AA AA AA AA").unwrap();
         let slice = Box::leak(Box::new([0x00, 0x00, 0x00, 0x00]));
-        let result = SimpleScanner::new().scan(slice, &pattern);
+        let result = SimpleScanner::default().scan(slice, &pattern);
 
         assert_eq!(result, None);
     }
@@ -100,7 +101,7 @@ mod tests {
     fn simple_scanner_finds_the_pattern_1() {
         let pattern = Pattern::from_ida_pattern("75 84 4A EF 23 24 CA 35").unwrap();
         let randomness = include_bytes!("../../test/random.bin");
-        let result = SimpleScanner::new().scan(randomness, &pattern).unwrap();
+        let result = SimpleScanner::default().scan(randomness, &pattern).unwrap();
 
         assert_eq!(result, 1309924);
     }
@@ -109,7 +110,7 @@ mod tests {
     fn simple_scanner_finds_the_pattern_2() {
         let pattern = Pattern::from_ida_pattern("B7 ?? CF D8 ?? 0A ?? 27").unwrap();
         let randomness = include_bytes!("../../test/random.bin");
-        let result = SimpleScanner::new().scan(randomness, &pattern).unwrap();
+        let result = SimpleScanner::default().scan(randomness, &pattern).unwrap();
 
         assert_eq!(result, 867776);
     }
@@ -118,7 +119,7 @@ mod tests {
     fn simple_scanner_doesnt_find_the_pattern() {
         let pattern = Pattern::from_ida_pattern("FF FF FF FF FF FF FF FF").unwrap();
         let randomness = include_bytes!("../../test/random.bin");
-        let result = SimpleScanner::new().scan(randomness, &pattern);
+        let result = SimpleScanner::default().scan(randomness, &pattern);
 
         assert_eq!(result, None);
     }
