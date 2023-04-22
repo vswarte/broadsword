@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::thread;
 use crate::pattern::Pattern;
 use crate::scanner::simple::SimpleScanner;
 use crate::scanner::{GroupScanner, Scanner};
@@ -16,7 +16,7 @@ impl Scanner for ThreadedScanner {
         for (offset, chunk) in chunks.into_iter() {
             let pattern = pattern.clone();
 
-            let handle = std::thread::spawn(move || SimpleScanner.scan(chunk, &pattern));
+            let handle = std::thread::spawn(move || SimpleScanner::default().scan(chunk, &pattern));
 
             thread_handles.push((offset, handle));
         }
@@ -63,14 +63,14 @@ impl GroupScanner for ThreadedScanner {
 }
 
 impl ThreadedScanner {
-    pub fn new() -> Self {
-        Self {
-            thread_count: std::thread::available_parallelism().unwrap().get(),
-        }
-    }
-
     pub fn new_with_thread_count(thread_count: usize) -> Self {
         Self { thread_count }
+    }
+}
+
+impl Default for ThreadedScanner {
+    fn default() -> Self {
+        Self::new_with_thread_count(thread::available_parallelism().unwrap().get())
     }
 }
 
@@ -82,7 +82,7 @@ mod tests {
 
     #[test]
     fn thread_scanner_defaults_to_available_parallelism() {
-        let scanner = ThreadedScanner::new();
+        let scanner = ThreadedScanner::default();
 
         assert!(
             scanner.thread_count > 0,
