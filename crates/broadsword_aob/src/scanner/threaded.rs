@@ -42,31 +42,26 @@ impl ThreadedScanner {
         let chunks = split_scannable(scannable, self.thread_count, length);
 
         let mut thread_handles = Vec::new();
-        let (sx, rx): (Sender<Pattern>, Receiver<Pattern>) = mpsc::channel();
+        let recv;
         let stop = Arc::new(AtomicBool::new(false));
+        {
+            let (sx, rx): (Sender<Pattern>, Receiver<Pattern>) = mpsc::channel();
+            recv = rx;
 
-        for (offset, chunk) in chunks.into_iter() {
-            let pattern = patterns.clone();
-            let sender = sx.clone();
-            let stop_thread = stop.clone();
+            for (offset, chunk) in chunks.into_iter() {
+                let mut pattern = patterns.clone();
+                let sender = sx.clone();
+                let stop_thread = stop.clone();
 
-            let handle = thread::spawn(move || {
-                SimpleScanner::default().threaded_group_scan(
-                    chunk,
-                    offset,
-                    pattern,
-                    sender,
-                    stop_thread,
-                )
-            });
+                let handle = thread::spawn(move || SimpleScanner::default().threaded_group_scan(chunk, offset, pattern, sender, stop_thread));
 
-            thread_handles.push(handle);
+                thread_handles.push(handle);
+            }
         }
 
-        drop(sx);
         // Collect the results.
         let mut results = Vec::with_capacity(patterns.len());
-        for found_item in rx {
+        for found_item in recv {
             // Push to result vec
             results.push(found_item);
 
