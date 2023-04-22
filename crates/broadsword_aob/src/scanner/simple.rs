@@ -65,7 +65,7 @@ impl SimpleScanner {
 
                 position_in_pattern += 1;
             }
-            if patterns.iter().all(|p| p.offset.is_some()) {
+            if patterns.len() == results.len() {
                 break;
             }
         }
