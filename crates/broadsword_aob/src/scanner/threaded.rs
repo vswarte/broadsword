@@ -164,32 +164,34 @@ mod tests {
     }
 
     #[test]
-    fn threaded_scanner_finds_the_patterns() {
+    fn threaded_scanner_group_finds_the_patterns() {
         let mut patterns = Vec::with_capacity(5);
         patterns.push(Pattern::from_ida_pattern("75 84 4A EF 23 24 CA 35").unwrap());
         patterns.push(Pattern::from_ida_pattern("B7 ?? CF D8 ?? 0A ?? 27").unwrap());
         let randomness = include_bytes!("../../test/random.bin");
-        let result = ThreadedScanner::new_with_thread_count(4).group_scan(randomness, &patterns);
+        let results = ThreadedScanner::new_with_thread_count(4).group_scan(randomness, &patterns);
 
-        let valid = vec![1309924, 867776];
-        assert_eq!(result.len(), 2);
-        assert!(valid.contains(&result[0].offset.unwrap()));
-        assert!(valid.contains(&result[1].offset.unwrap()));
+        let valid = vec![Some(1309924), Some(867776)];
+        assert_eq!(results.len(), 2);
+        for result in results {
+            assert!(valid.contains(&result.offset))
+        }
     }
 
     #[test]
-    fn threaded_scanner_finds_the_patterns_except_one() {
+    fn threaded_scanner_group_finds_the_patterns_except_one() {
         let mut patterns = Vec::with_capacity(5);
         patterns.push(Pattern::from_ida_pattern("75 84 4A EF 23 24 CA 35").unwrap());
         patterns.push(Pattern::from_ida_pattern("B7 ?? CF D8 ?? 0A ?? 27").unwrap());
         patterns.push(Pattern::from_ida_pattern("AA BB CC DD EE FF 00 11").unwrap());
         let randomness = include_bytes!("../../test/random.bin");
-        let result = ThreadedScanner::new_with_thread_count(4).group_scan(randomness, &patterns);
+        let results = ThreadedScanner::new_with_thread_count(4).group_scan(randomness, &patterns);
 
-        let valid = vec![1309924, 867776];
-        assert_eq!(result.len(), 2);
-        assert!(valid.contains(&result[0].offset.unwrap()));
-        assert!(valid.contains(&result[1].offset.unwrap()));
+        let valid = vec![Some(1309924), Some(867776)];
+        assert_eq!(results.len(), 2);
+        for result in results {
+            assert!(valid.contains(&result.offset))
+        }
     }
 
     #[test]

@@ -171,7 +171,7 @@ mod tests {
     }
 
     #[test]
-    fn simple_scanner_finds_the_patterns() {
+    fn simple_scanner_group_finds_the_patterns() {
         let mut patterns = Vec::with_capacity(5);
         patterns.push(Pattern::from_ida_pattern("75 84 4A EF 23 24 CA 35").unwrap());
         patterns.push(Pattern::from_ida_pattern("B7 ?? CF D8 ?? 0A ?? 27").unwrap());
@@ -185,7 +185,7 @@ mod tests {
     }
 
     #[test]
-    fn simple_scanner_finds_the_patterns_except_one() {
+    fn simple_scanner_group_finds_the_patterns_except_one() {
         let mut patterns = Vec::with_capacity(5);
         patterns.push(Pattern::from_ida_pattern("75 84 4A EF 23 24 CA 35").unwrap());
         patterns.push(Pattern::from_ida_pattern("B7 ?? CF D8 ?? 0A ?? 27").unwrap());
