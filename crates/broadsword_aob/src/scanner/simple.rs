@@ -216,8 +216,8 @@ mod tests {
     #[test]
     fn simple_scanner_group_finds_the_patterns() {
         let mut patterns = Vec::with_capacity(5);
-        patterns.push(Pattern::from_ida_pattern("75 84 4A EF 23 24 CA 35").unwrap());
-        patterns.push(Pattern::from_ida_pattern("B7 ?? CF D8 ?? 0A ?? 27").unwrap());
+        patterns.push(Pattern::from_pattern_str("75 84 4A EF 23 24 CA 35").unwrap());
+        patterns.push(Pattern::from_pattern_str("B7 ?? CF D8 ?? 0A ?? 27").unwrap());
         let randomness = include_bytes!("../../test/random.bin");
         let result = SimpleScanner::default().group_scan(randomness, &mut patterns);
 
@@ -230,9 +230,9 @@ mod tests {
     #[test]
     fn simple_scanner_group_finds_the_patterns_except_one() {
         let mut patterns = Vec::with_capacity(5);
-        patterns.push(Pattern::from_ida_pattern("75 84 4A EF 23 24 CA 35").unwrap());
-        patterns.push(Pattern::from_ida_pattern("B7 ?? CF D8 ?? 0A ?? 27").unwrap());
-        patterns.push(Pattern::from_ida_pattern("AA BB CC DD EE FF 00 11").unwrap());
+        patterns.push(Pattern::from_pattern_str("75 84 4A EF 23 24 CA 35").unwrap());
+        patterns.push(Pattern::from_pattern_str("B7 ?? CF D8 ?? 0A ?? 27").unwrap());
+        patterns.push(Pattern::from_pattern_str("AA BB CC DD EE FF 00 11").unwrap());
         let randomness = include_bytes!("../../test/random.bin");
         let result = SimpleScanner::default().group_scan(randomness, &mut patterns);
 

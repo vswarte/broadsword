@@ -49,5 +49,6 @@ pub(crate) fn parse_pattern(input: &str) -> Result<Pattern, ParserError> {
         bytes,
         mask,
         capture_groups,
+        offset: None,
     })
 }

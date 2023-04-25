@@ -9,6 +9,7 @@ pub struct Pattern {
     pub mask: Vec<bool>,
     pub length: usize,
     pub capture_groups: Vec<Range<usize>>,
+    pub offset: Option<usize>,
 }
 
 impl Pattern {
@@ -28,7 +29,7 @@ impl Pattern {
         let mask = vec![true; length];
         let capture_groups = vec![];
 
-        Self { bytes, mask, length, capture_groups }
+        Self { bytes, mask, length, capture_groups, offset: None }
     }
 
     /// Wraps `from_byte_vec` and copies the `bytes` slice.
