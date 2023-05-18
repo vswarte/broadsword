@@ -1,6 +1,7 @@
 [workspace]
 members = [
-	"crates/broadsword_aob",
+	"crates/address",
+	"crates/scanner",
 ]
 
 [workspace.dependencies]
