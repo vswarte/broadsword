@@ -5,27 +5,45 @@ use crate::util::split_scannable;
 use crate::scanner::{Scanner, ScanResult};
 use crate::scanner::simple::SimpleScanner;
 
+/// This scanner works by taking the search range, splitting it up in chunks and feeding every
+/// chunk into its own SimpleScanner, then taking the results and rebasing the found offsets.
+/// Because I'm lazy this does not yet halt when a single result is found *but* will only return
+/// the first result that was found.
 pub struct ThreadedScanner {
     pub thread_count: usize,
 }
 
 impl Scanner for ThreadedScanner {
     fn scan(&self, scannable: &'static [u8], pattern: &Pattern) -> Option<ScanResult> {
-        let chunks = split_scannable(scannable, self.thread_count, pattern.length - 1);
+        let chunks = split_scannable(
+            scannable,
+            self.thread_count,
+            pattern.length - 1
+        );
 
         let mut thread_handles = Vec::new();
         for (offset, chunk) in chunks.into_iter() {
             let pattern = pattern.clone();
 
-            let handle = std::thread::spawn(move || SimpleScanner::default().scan(chunk, &pattern));
+            let handle = thread::spawn(move || {
+                SimpleScanner::default().scan(chunk, &pattern)
+            });
 
             thread_handles.push((offset, handle));
         }
 
         for handle in thread_handles {
+            // Rebase the scan result to its respective chunk
             let result = handle.1.join()
                 .unwrap()
-                .map(|r| ScanResult { location: r.location + handle.0, captures: r.captures });
+                .map(|mut r|{
+                    let offset = handle.0.as_usize();
+
+                    r.location.move_by(offset);
+                    r.captures.iter_mut().for_each(|c| c.location.move_by(offset));
+
+                    r
+                });
 
             if result.is_some() {
                 return result;
@@ -33,36 +51,6 @@ impl Scanner for ThreadedScanner {
         }
 
         None
-    }
-
-
-    fn scan_multiple(&self, scannable: &'static [u8], pattern: &Pattern) -> Vec<ScanResult> {
-        let chunks = split_scannable(scannable, self.thread_count, pattern.length - 1);
-
-        let mut thread_handles = Vec::new();
-        for (offset, chunk) in chunks.into_iter() {
-            let pattern = pattern.clone();
-
-            let handle = std::thread::spawn(move || SimpleScanner::default().scan_multiple(chunk, &pattern));
-
-            thread_handles.push((offset, handle));
-        }
-
-        let mut results = vec![];
-
-        for handle in thread_handles {
-            let scan_results = handle.1.join()
-                .unwrap()
-                .into_iter()
-                .map(|r| ScanResult { location: r.location + handle.0, captures: r.captures })
-                .collect::<Vec<ScanResult>>();
-
-            for result in scan_results {
-                results.push(result);
-            }
-        }
-
-        results
     }
 }
 
@@ -80,6 +68,8 @@ impl Default for ThreadedScanner {
 
 #[cfg(test)]
 mod tests {
+    use broadsword_address::Offset;
+
     use crate::scanner::Scanner;
     use crate::pattern::Pattern;
     use crate::scanner::threaded::ThreadedScanner;
@@ -104,7 +94,7 @@ mod tests {
     }
 
     #[test]
-    fn threaded_scanner_behaves_with_too_long_of_an_aob() {
+    fn threaded_scanner_behaves_with_too_long_of_a_pattern() {
         let pattern = Pattern::from_byte_slice(&[0xAA, 0xAA, 0xAA, 0xAA, 0xAA]);
         let slice = Box::leak(Box::new([0x00, 0x00, 0x00, 0x00]));
         let result = ThreadedScanner::new_with_thread_count(4).scan(slice, &pattern);
@@ -120,7 +110,7 @@ mod tests {
             .scan(randomness, &pattern)
             .unwrap();
 
-        assert_eq!(result.location, 1309924);
+        assert_eq!(result.location, Offset::from(1309924));
         assert_eq!(result.captures.len(), 0);
     }
 
@@ -132,9 +122,10 @@ mod tests {
             .scan(randomness, &pattern)
             .unwrap();
 
-        assert_eq!(result.location, 867776);
+        assert_eq!(result.location, Offset::from(867776));
         assert_eq!(result.captures.len(), 1);
-        assert_eq!(result.captures[0], vec![0xc6, 0xcf, 0xd8, 0x11]);
+        assert_eq!(result.captures[0].location, Offset::from(867777));
+        assert_eq!(result.captures[0].bytes, vec![0xc6, 0xcf, 0xd8, 0x11]);
     }
 
     #[test]

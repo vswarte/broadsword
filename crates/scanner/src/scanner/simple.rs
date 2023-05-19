@@ -1,5 +1,7 @@
+use broadsword_address::Offset;
+
 use crate::pattern::Pattern;
-use crate::scanner::{Scanner, ScanResult};
+use crate::scanner::{Scanner, ScanResult, ScanResultCapture};
 
 #[derive(Default)]
 pub struct SimpleScanner;
@@ -23,10 +25,16 @@ impl Scanner for SimpleScanner {
                     let group_start = location + group.start;
                     let group_end = location + group.end;
 
-                    captures.push(scannable[group_start..group_end].to_vec());
+                    captures.push(ScanResultCapture {
+                        location: Offset::from(group_start),
+                        bytes: scannable[group_start..group_end].to_vec()
+                    });
                 }
 
-                return Some(ScanResult { location, captures });
+                return Some(ScanResult {
+                    location: Offset::from(location),
+                    captures
+                });
             }
 
             position_in_pattern += 1;
@@ -34,38 +42,12 @@ impl Scanner for SimpleScanner {
 
         None
     }
-
-    fn scan_multiple(&self, scannable: &'static [u8], pattern: &Pattern) -> Vec<ScanResult> {
-        let mut offset = 0;
-        let mut results = vec![];
-
-        loop {
-            // Run normal scan from offset
-            let result = self.scan(&scannable[offset..scannable.len()], pattern);
-
-
-            // If no result were found `scan` went up to the end and we've reached the end.
-            if result.is_none() {
-                break;
-            }
-
-            let found = result.unwrap();
-            // Create a new result object to rebase the location
-            results.push(ScanResult {
-                location: found.location + offset,
-                captures: found.captures,
-            });
-
-            // Update the search offset if a result was found so we don't find the same entry again
-            offset = found.location + 1;
-        }
-
-        results
-    }
 }
 
 #[cfg(test)]
 mod tests {
+    use broadsword_address::Offset;
+
     use crate::scanner::Scanner;
     use crate::pattern::Pattern;
     use crate::scanner::simple::SimpleScanner;
@@ -80,7 +62,7 @@ mod tests {
     }
 
     #[test]
-    fn simple_scanner_behaves_with_too_long_of_an_aob() {
+    fn simple_scanner_behaves_with_too_long_of_a_pattern() {
         let pattern = Pattern::from_byte_slice(&[0xAA, 0xAA, 0xAA, 0xAA, 0xAA]);
         let slice = Box::leak(Box::new([0x00, 0x00, 0x00, 0x00]));
         let result = SimpleScanner::default().scan(slice, &pattern);
@@ -94,7 +76,7 @@ mod tests {
         let randomness = include_bytes!("../../test/random.bin");
         let result = SimpleScanner::default().scan(randomness, &pattern).unwrap();
 
-        assert_eq!(result.location, 1309924);
+        assert_eq!(result.location, Offset::from(1309924));
         assert_eq!(result.captures.len(), 0);
     }
 
@@ -104,10 +86,11 @@ mod tests {
         let randomness = include_bytes!("../../test/random.bin");
         let result = SimpleScanner::default().scan(randomness, &pattern).unwrap();
 
-        assert_eq!(result.location, 867776);
+        assert_eq!(result.location, Offset::from(867776));
         assert_eq!(result.captures.len(), 1);
 
-        assert_eq!(result.captures[0], vec![0xc6, 0xcf, 0xd8, 0x11]);
+        assert_eq!(result.captures[0].location, Offset::from(867777));
+        assert_eq!(result.captures[0].bytes, vec![0xc6, 0xcf, 0xd8, 0x11]);
     }
 
     #[test]
