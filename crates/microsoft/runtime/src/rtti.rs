@@ -56,7 +56,7 @@ pub fn get_classname(ptr: Address) -> Option<String> {
     };
 
     let name = TypeDescriptor::from_slice(type_descriptor_slice).name;
-    if name.is_empty() {
+    if name.is_empty() || !name.starts_with(".?") {
         return None;
     }
 

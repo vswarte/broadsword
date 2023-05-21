@@ -21,10 +21,20 @@ pub fn entry(_: usize, _: u32) {
 
 unsafe extern "system" fn exception_filter(exception_info: *mut EXCEPTION_POINTERS) -> i32 {
     let exception_record = *(*exception_info).ExceptionRecord;
+    // Skip some noise
+    if exception_record.ExceptionCode.0 == 0x406d1388 {
+        return ExceptionContinueSearch.0;
+    }
+
     let exception_address = exception_record.ExceptionAddress as usize;
     let exception_module = runtime::get_module_pointer_belongs_to(exception_address);
     let exception_module_string = exception_module
         .map_or_else(|| String::from("Unknown"), |x| format_exception_module(x, exception_address));
+
+    // Filter IsBadReadPtr noise
+    if exception_module_string == "KERNEL32.DLL" {
+        return ExceptionContinueSearch.0;
+    }
 
     error!(
         "Got exception code {:#08x} at {:#08x} - {}",

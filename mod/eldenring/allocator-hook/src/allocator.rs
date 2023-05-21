@@ -17,7 +17,7 @@ static ALLOC: GlobalAllocator = GlobalAllocator::new();
 
 // No I don't want to talk about the mutexes
 static mut ALLOCATIONS: Option<sync::Mutex<HashMap<usize, alloc::Layout>>> = None;
-static mut SIZES: Option<sync::Mutex<HashMap<String, usize>>> = None;
+static mut SIZES: Option<sync::Mutex<HashMap<usize, SizeEntry>>> = None;
 
 create_allocator_hook!(heap, 0x142b821b0);
 
@@ -26,4 +26,11 @@ pub(crate) unsafe fn hook() {
     SIZES = Some(sync::Mutex::new(HashMap::default()));
 
     heap();
+}
+
+#[derive(Debug, Clone)]
+struct SizeEntry {
+    pub name: String,
+    pub size: usize,
+    pub warned: bool,
 }

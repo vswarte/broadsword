@@ -27,7 +27,6 @@ macro_rules! create_stepper_hook {
                         paste! { [<$name:upper _%%z%% _HOOK>] }
                             .initialize(mem::transmute(step.function_ptr), move |step: usize, param_2: usize| {
                                 let name = paste! { [<NAMES_ $name:upper>] }.as_ref().unwrap()[%%z%%].as_str();
-                                // debug!("Hook {} was invoked", name);
                                 let span = span!(Level::INFO, "Step", step = name);
                                 let _enter = span.enter();
 

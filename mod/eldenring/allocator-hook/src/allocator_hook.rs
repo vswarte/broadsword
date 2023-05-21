@@ -39,24 +39,34 @@ macro_rules! create_allocator_hook {
                     let deallocated_entry = table.remove(&ptr);
                     match deallocated_entry {
                         Some(e) => {
-                            if let Some(classname) = runtime::get_rtti_classname(ptr.into()) {
-                                let size = e.size();
-                                match SIZES.as_mut().unwrap()
-                                    .lock().unwrap()
-                                    .entry(classname.clone()) {
-                                    Entry::Occupied(e) => {
-                                        if e.get() != &size {
-                                            warn!("Got differing size for structure {}", classname);
-                                        }
-                                    },
-                                    Entry::Vacant(e) => {
-                                        e.insert(size);
-                                        debug!("{} - size: {}", classname, size);
-                                    },
-                                }
+                            let size = e.size();
+                            match SIZES.as_mut().unwrap()
+                                .lock().unwrap()
+                                .entry(ptr) {
+                                Entry::Occupied(mut e) => {
+                                    let entry = e.get();
+                                    if entry.size != size && !entry.warned {
+                                        warn!("Differing size for structure {}", entry.name);
+                                        let mut entry = e.get().clone();
+                                        entry.warned = true;
+                                        e.replace_entry(entry);
+                                    }
+                                },
+                                Entry::Vacant(e) => {
+                                    if let Some(classname) = runtime::get_rtti_classname(ptr.into()) {
+                                        e.insert(SizeEntry {
+                                            name: classname.clone(),
+                                            size: size,
+                                            warned: false,
+                                        });
+
+                                        debug!("{} - size: {:x?}", classname, size);
+                                    }
+                                },
                             }
                         },
-                        None => debug!("Could not find an allocation table entry for {:#x}", ptr),
+                        // None => warn!("Could not find an allocation table entry for {:#x}", ptr),
+                        None => {},
                     };
 
                     paste!{ [<$name:upper _DEALLOC>] }.call(allocator, ptr);

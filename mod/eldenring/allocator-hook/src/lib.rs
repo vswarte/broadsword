@@ -1,3 +1,4 @@
+#![feature(map_entry_replace)]
 use std::mem;
 
 use detour::static_detour;
