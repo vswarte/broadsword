@@ -50,6 +50,18 @@ impl ops::Add<&Offset> for &Offset {
     }
 }
 
+impl From<i32> for Offset {
+    fn from(value: i32) -> Self {
+        Self { value: value as usize }
+    }
+}
+
+impl From<u32> for Offset {
+    fn from(value: u32) -> Self {
+        Self { value: value as usize }
+    }
+}
+
 impl From<usize> for Offset {
     fn from(value: usize) -> Self {
         Self { value }
@@ -77,6 +89,10 @@ impl Address {
     pub fn rebase(&self, from: &Base, to: &Base) -> Self {
         let new_value = (self.value - from.value) + to.value;
         Self { value: new_value }
+    }
+
+    pub fn as_usize(&self) -> usize {
+        self.value
     }
 }
 

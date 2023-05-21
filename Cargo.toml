@@ -1,10 +1,20 @@
 [workspace]
 members = [
-	"crates/address",
+	"main",
+
 	"crates/scanner",
+	"crates/address",
+    "crates/microsoft/rtti",
+	"crates/microsoft/dll",
+	"crates/microsoft/runtime",
+
+	"mod/crash-logger",
+	"mod/eldenring/allocator-hook",
+	"bin/rtti-hierarchy-graph",
 ]
 
 [workspace.dependencies]
 log = "0.4"
-log4rs = "1.2"
+log4rs = "1"
 serde = { version = "1.0", features = ["derive"] }
+detour = { git = "https://github.com/veeenu/detour-rs.git", branch = "master" }

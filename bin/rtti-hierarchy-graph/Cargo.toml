@@ -1,0 +1,11 @@
+[package]
+name = "rtti-hierarchy-graph"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pelite = "0.10"
+graphviz-rust = "0.6"
+regex = "1.7"
+msvc-demangler = "0.9"
+broadsword = { path = "../../main" }

@@ -1,0 +1,10 @@
+[package]
+name = "broadsword"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+broadsword_rtti = { path = "../crates/microsoft/rtti" }
+broadsword_dll = { path = "../crates/microsoft/dll" }
+broadsword_logging = { path = "../crates/logging" }
+broadsword_microsoft_runtime = { path = "../crates/microsoft/runtime" }

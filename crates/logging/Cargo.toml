@@ -1,0 +1,8 @@
+[package]
+name = "broadsword_logging"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+log = { workspace = true }
+log4rs = { workspace = true }

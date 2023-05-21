@@ -1,0 +1,4 @@
+[package]
+name = "broadsword_dll"
+version = "0.0.1"
+edition = "2021"

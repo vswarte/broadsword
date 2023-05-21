@@ -13,10 +13,11 @@ pub enum TokenizationError {
 }
 
 pub(crate) fn tokenize_pattern(input: &str) -> Result<Vec<Token>, TokenizationError> {
-    let mut tokens = Vec::new();
+    // Can probably just shift the ASCII values as a speed up
     let input_lower = input.to_lowercase();
     let mut input_iter = input_lower.chars().peekable();
 
+    let mut tokens = Vec::new();
     while let Some(current_character) = input_iter.next() {
         match current_character {
             ' ' => { },

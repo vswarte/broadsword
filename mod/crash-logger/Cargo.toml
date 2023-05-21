@@ -1,0 +1,23 @@
+[package]
+name = "crash-logger"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+log = { workspace = "true" }
+log4rs = { workspace = "true" }
+iced-x86 = "1.18.0"
+broadsword = { path="../../main" }
+
+[dependencies.windows]
+version = "0.48.0"
+features = [
+    "Win32_Foundation",
+    "Win32_System_Kernel",
+    "Win32_System_Threading",
+    "Win32_System_ProcessStatus",
+    "Win32_System_Diagnostics_Debug",
+]
+
+[lib]
+crate-type = ["cdylib"]
