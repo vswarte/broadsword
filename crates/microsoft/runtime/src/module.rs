@@ -12,14 +12,14 @@ pub enum ModuleNameLookupError {
     EncodingError,
 }
 
+/// Enumerates all the modules in the current process
 pub fn get_modules() -> Vec<Module> {
     let mut bytes_used = 0 as u32;
     let mut modules = [HMODULE::default(); 1024];
-    let process = unsafe { GetCurrentProcess() };
 
     let res = unsafe {
         EnumProcessModules(
-            process,
+            GetCurrentProcess(),
             modules.as_mut_ptr(),
             mem::size_of::<[HMODULE; 1024]>() as u32,
             &mut bytes_used as *mut u32,
@@ -33,7 +33,7 @@ pub fn get_modules() -> Vec<Module> {
     let mut result = vec![];
     for i in 0..bytes_used / mem::size_of::<HMODULE>() as u32 {
         let module_base = modules[i as usize];
-        let module_name_result = get_module_name(process, module_base);
+        let module_name_result = get_module_name(module_base);
 
         if let Some(module_name) = module_name_result.ok() {
             result.push(Module {
@@ -46,18 +46,21 @@ pub fn get_modules() -> Vec<Module> {
     result
 }
 
+/// Gives you to the module that a particular pointer falls in range of.
 pub fn get_module_pointer_belongs_to(pointer: usize) -> Option<Module> {
     get_modules()
         .into_iter()
         .find(|x| x.memory_range.contains(&pointer))
 }
 
-fn get_module_name(process: HANDLE, module: HMODULE) -> Result<String, ModuleNameLookupError> {
+/// WARNING: this function does not perform any sanity-checking on the input.
+/// Gets a module name from the current process by its module base.
+fn get_module_name(module: HMODULE) -> Result<String, ModuleNameLookupError> {
     let module_name_length;
     let mut module_name = [0 as u8; MAX_PATH as usize];
 
     unsafe {
-        module_name_length = GetModuleBaseNameA(process, module, &mut module_name);
+        module_name_length = GetModuleBaseNameA(GetCurrentProcess(), module, &mut module_name);
     }
 
     if module_name_length == 0 {
@@ -68,6 +71,8 @@ fn get_module_name(process: HANDLE, module: HMODULE) -> Result<String, ModuleNam
         .map_err(|_| ModuleNameLookupError::EncodingError)
 }
 
+/// WARNING: this function does not perform any sanity-checking on the input.
+/// Gives you the range that a module spans by the modules base.
 fn get_module_range_by_base(base: usize) -> Option<ops::Range<usize>> {
     let image_header = unsafe { ImageNtHeader(base as *const ffi::c_void) };
     let image_size = unsafe { (*image_header).OptionalHeader.SizeOfImage as u32 };
