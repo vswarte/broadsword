@@ -6,7 +6,6 @@ use tracy::tracing::TracyLayer;
 use tracing_subscriber::prelude::*;
 
 use broadsword::dll;
-use broadsword::rtti;
 use broadsword::logging;
 
 mod stepper;

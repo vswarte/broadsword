@@ -6,23 +6,19 @@ macro_rules! create_allocator_hook {
             static_detour! { static [<$name:upper _DEALLOC>]: fn(usize, usize); }
         }
 
-        paste! { static mut [<$name:upper _ALLOCATIONS>] : Option<HashMap<usize, alloc::Layout>> = None; }
-
         unsafe fn $name() {
             let alloc_fn_ptr = {
                 let vftable_entry: usize = $vftable + 0x50;
                 (vftable_entry as *const usize)
             };
 
-            paste! { [<$name:upper _ALLOCATIONS>] = Some(HashMap::default()) };
-
             paste!{ [<$name:upper _ALLOC>] }.initialize(
                 mem::transmute(*alloc_fn_ptr),
                 move |allocator: usize, size: usize, alignment: usize| {
-                    let table = paste! { [<$name:upper _ALLOCATIONS>] }.as_mut().unwrap();
                     let allocation = paste!{ [<$name:upper _ALLOC>] }.call(allocator, size, alignment);
 
                     let layout = alloc::Layout::from_size_align(size, alignment).unwrap();
+                    let mut table = ALLOCATIONS.as_mut().unwrap().lock().unwrap();
                     table.insert(allocation, layout);
 
                     allocation
@@ -38,14 +34,26 @@ macro_rules! create_allocator_hook {
             paste!{ [<$name:upper _DEALLOC>] }.initialize(
                 mem::transmute(*dealloc_fn_ptr),
                 move |allocator: usize, ptr: usize| {
-                    let table = paste! { [<$name:upper _ALLOCATIONS>] }.as_mut().unwrap();
+                    let mut table = ALLOCATIONS.as_mut().unwrap().lock().unwrap();
 
                     let deallocated_entry = table.remove(&ptr);
                     match deallocated_entry {
                         Some(e) => {
-                            debug!("Attempting to get classname");
-                            if let Some(classname) = runtime::get_rtti_classname(0x140000000.into(), ptr.into()) {
-                                debug!("{} - size: {}", classname, e.size());
+                            if let Some(classname) = runtime::get_rtti_classname(ptr.into()) {
+                                let size = e.size();
+                                match SIZES.as_mut().unwrap()
+                                    .lock().unwrap()
+                                    .entry(classname.clone()) {
+                                    Entry::Occupied(e) => {
+                                        if e.get() != &size {
+                                            warn!("Got differing size for structure {}", classname);
+                                        }
+                                    },
+                                    Entry::Vacant(e) => {
+                                        e.insert(size);
+                                        debug!("{} - size: {}", classname, size);
+                                    },
+                                }
                             }
                         },
                         None => debug!("Could not find an allocation table entry for {:#x}", ptr),

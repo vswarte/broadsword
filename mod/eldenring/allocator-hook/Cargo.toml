@@ -4,10 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-
 broadsword_address = { path="../../../crates/address" }
 broadsword = { path="../../../main" }
-
 detour = { workspace = true }
 log = { workspace = true }
 log4rs = { workspace = true }

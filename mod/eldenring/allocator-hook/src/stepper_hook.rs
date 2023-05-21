@@ -32,13 +32,12 @@ macro_rules! create_stepper_hook {
                                 let _enter = span.enter();
 
                                 paste! { [<$name:upper _%%z%% _HOOK>] }.call(step, param_2);
-
                             });
 
                         match paste! { [<$name:upper _%%z%% _HOOK>] }.enable() {
                             Err(e) => warn!("Could not hook {} (#{} - {:#x})", step_name, %%z%%, step.function_ptr),
                             _ => {},
-                        }
+                        };
                     } else {
                         warn!("Found empty step at step {}", %%z%%);
                     }
