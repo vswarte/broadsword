@@ -30,9 +30,6 @@ pub fn get_classname(ptr: Address) -> Option<String> {
         None => { return None; }
     };
 
-    // let module = module.unwrap();
-    // info!("{:?}", module);
-
     let meta_ptr = vftable_ptr - mem::size_of::<usize>();
     let col_ptr = unsafe { *(meta_ptr as *const usize) };
     if !pointer::is_valid_pointer(col_ptr) {

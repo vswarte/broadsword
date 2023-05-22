@@ -39,7 +39,7 @@ pub fn entry(_: usize, _: u32) {
 
         HOOK.enable().unwrap();
 
-        stepper::hook();
+        // stepper::hook();
         allocator::hook();
     }
 }
