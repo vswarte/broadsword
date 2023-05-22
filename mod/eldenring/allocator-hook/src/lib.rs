@@ -8,6 +8,7 @@ use tracing_subscriber::prelude::*;
 
 use broadsword::dll;
 use broadsword::logging;
+use broadsword::runtime;
 
 mod stepper;
 mod stepper_hook;
@@ -28,16 +29,16 @@ pub fn entry(_: usize, _: u32) {
     ).unwrap();
 
     unsafe {
-        HOOK.initialize(
-            mem::transmute(0x141e74e30 as usize), // Pointer assumes 1.09.1
-            |size: usize, alignment: usize, allocator: usize| {
-                // let classname = get_classname(0x140000000.into(), allocator.into());
-                // ALLOC.alloc(Layout::from_size_align(size, alignment));
-                HOOK.call(size, alignment, allocator)
-            }
-        ).unwrap();
+        // HOOK.initialize(
+        //     mem::transmute(0x141e74e30 as usize), // Pointer assumes 1.09.1
+        //     |size: usize, alignment: usize, allocator: usize| {
+        //         // let classname = get_classname(0x140000000.into(), allocator.into());
+        //         // ALLOC.alloc(Layout::from_size_align(size, alignment));
+        //         HOOK.call(size, alignment, allocator)
+        //     }
+        // ).unwrap();
 
-        HOOK.enable().unwrap();
+        // HOOK.enable().unwrap();
 
         // stepper::hook();
         allocator::hook();

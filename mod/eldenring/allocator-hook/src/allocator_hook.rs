@@ -18,8 +18,10 @@ macro_rules! create_allocator_hook {
                     let allocation = paste!{ [<$name:upper _ALLOC>] }.call(allocator, size, alignment);
 
                     let layout = alloc::Layout::from_size_align(size, alignment).unwrap();
-                    let mut table = ALLOCATIONS.as_mut().unwrap().lock().unwrap();
+                    let mut table = ALLOCATIONS.as_mut().unwrap().write().unwrap();
                     table.insert(allocation, layout);
+
+                    runtime::pageguard(allocation.into());
 
                     allocation
                 }
@@ -34,14 +36,17 @@ macro_rules! create_allocator_hook {
             paste!{ [<$name:upper _DEALLOC>] }.initialize(
                 mem::transmute(*dealloc_fn_ptr),
                 move |allocator: usize, ptr: usize| {
-                    let mut table = ALLOCATIONS.as_mut().unwrap().lock().unwrap();
+                    let deallocated_entry = {
+                        let mut table = ALLOCATIONS.as_mut().unwrap().write().unwrap();
+                        table.remove(&ptr)
+                    };
 
-                    let deallocated_entry = table.remove(&ptr);
                     match deallocated_entry {
                         Some(e) => {
                             let size = e.size();
                             match SIZES.as_mut().unwrap()
-                                .lock().unwrap()
+                                .write()
+                                .unwrap()
                                 .entry(ptr) {
                                 Entry::Occupied(mut e) => {
                                     let entry = e.get();
