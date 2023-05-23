@@ -13,6 +13,7 @@ paste = "1"
 tracing = "0.1"
 repeated = "0.1.2"
 tracing-subscriber = "0.3"
+iced-x86 = "1.18.0"
 
 [dependencies.tracy]
 package = "tracy_full"

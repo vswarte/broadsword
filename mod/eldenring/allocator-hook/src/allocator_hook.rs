@@ -17,9 +17,16 @@ macro_rules! create_allocator_hook {
                 move |allocator: usize, size: usize, alignment: usize| {
                     let allocation = paste!{ [<$name:upper _ALLOC>] }.call(allocator, size, alignment);
 
-                    let layout = alloc::Layout::from_size_align(size, alignment).unwrap();
-                    let mut table = ALLOCATIONS.as_mut().unwrap().write().unwrap();
-                    table.insert(allocation, layout);
+                    let table_entry = AllocationTableEntry {
+                        name: None,
+                        // invalidated: false,
+                        layout: alloc::Layout::from_size_align(size, alignment).unwrap(),
+                    };
+
+                    {
+                        let mut table = ALLOCATION_TABLE.as_mut().unwrap().write().unwrap();
+                        table.insert(allocation, table_entry);
+                    }
 
                     runtime::set_pageguard(allocation.into());
 
@@ -36,45 +43,17 @@ macro_rules! create_allocator_hook {
             paste!{ [<$name:upper _DEALLOC>] }.initialize(
                 mem::transmute(*dealloc_fn_ptr),
                 move |allocator: usize, ptr: usize| {
+                    paste!{ [<$name:upper _DEALLOC>] }.call(allocator, ptr);
+
                     let deallocated_entry = {
-                        let mut table = ALLOCATIONS.as_mut().unwrap().write().unwrap();
+                        let mut table = ALLOCATION_TABLE.as_mut().unwrap().write().unwrap();
                         table.remove(&ptr)
                     };
 
-                    match deallocated_entry {
-                        Some(e) => {
-                            let size = e.size();
-                            match SIZES.as_mut().unwrap()
-                                .write()
-                                .unwrap()
-                                .entry(ptr) {
-                                Entry::Occupied(mut e) => {
-                                    let entry = e.get();
-                                    if entry.size != size && !entry.warned {
-                                        warn!("Differing size for structure {}", entry.name);
-                                        let mut entry = e.get().clone();
-                                        entry.warned = true;
-                                        e.replace_entry(entry);
-                                    }
-                                },
-                                Entry::Vacant(e) => {
-                                    if let Some(classname) = runtime::get_rtti_classname(ptr.into()) {
-                                        e.insert(SizeEntry {
-                                            name: classname.clone(),
-                                            size: size,
-                                            warned: false,
-                                        });
-
-                                        debug!("{} - size: {:x?}", classname, size);
-                                    }
-                                },
-                            }
-                        },
-                        // None => warn!("Could not find an allocation table entry for {:#x}", ptr),
-                        None => {},
-                    };
-
-                    paste!{ [<$name:upper _DEALLOC>] }.call(allocator, ptr);
+                    // match deallocated_entry {
+                    //     Some(e) => debug!("Removed allocation table entry {:?}", ptr),
+                    //     None => debug!("Could not find an allocation table entry for {:#x}", ptr),
+                    // };
                 }
             ).unwrap();
             paste!{ [<$name:upper _DEALLOC>] }.enable().unwrap();
