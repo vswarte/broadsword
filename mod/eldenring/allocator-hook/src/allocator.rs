@@ -9,7 +9,8 @@ use paste::paste;
 use broadsword::runtime;
 use detour::static_detour;
 use tracy::alloc::GlobalAllocator;
-use windows::Win32::System::Kernel::ExceptionContinueSearch;
+use windows::Win32::Foundation::EXCEPTION_GUARD_PAGE;
+use windows::Win32::System::Kernel::{ExceptionContinueExecution, ExceptionContinueSearch};
 use windows::Win32::System::Diagnostics::Debug::{AddVectoredExceptionHandler, EXCEPTION_POINTERS};
 
 
@@ -29,7 +30,7 @@ pub(crate) unsafe fn hook() {
     SIZES = Some(sync::RwLock::new(HashMap::default()));
 
     unsafe {
-        AddVectoredExceptionHandler(0x0, Some(exception_filter));
+        AddVectoredExceptionHandler(0x1, Some(exception_filter));
     }
 
     heap();
@@ -45,9 +46,11 @@ struct SizeEntry {
 unsafe extern "system" fn exception_filter(exception_info: *mut EXCEPTION_POINTERS) -> i32 {
     let exception_record = *(*exception_info).ExceptionRecord;
 
-    if exception_record.ExceptionCode.0 as usize == 0x80000001 {
-        info!("Got the CUM SKAR {:#x}", exception_record.ExceptionCode.0);
+    match exception_record.ExceptionCode {
+        EXCEPTION_GUARD_PAGE => {
+            info!("Guard page!");
+            ExceptionContinueExecution.0
+        },
+        _ => ExceptionContinueSearch.0,
     }
-
-    ExceptionContinueSearch.0
 }

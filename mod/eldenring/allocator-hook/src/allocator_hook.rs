@@ -21,7 +21,7 @@ macro_rules! create_allocator_hook {
                     let mut table = ALLOCATIONS.as_mut().unwrap().write().unwrap();
                     table.insert(allocation, layout);
 
-                    runtime::pageguard(allocation.into());
+                    runtime::set_pageguard(allocation.into());
 
                     allocation
                 }
