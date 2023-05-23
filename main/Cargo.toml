@@ -4,7 +4,9 @@ version = "0.0.1"
 edition = "2021"
 
 [dependencies]
-broadsword_rtti = { path = "../crates/microsoft/rtti" }
 broadsword_dll = { path = "../crates/microsoft/dll" }
+broadsword_rtti = { path = "../crates/microsoft/rtti" }
+broadsword_address = { path = "../crates/address" }
 broadsword_logging = { path = "../crates/logging" }
 broadsword_microsoft_runtime = { path = "../crates/microsoft/runtime" }
+broadsword_microsoft_static_analysis = { path = "../crates/microsoft/static_analysis" }

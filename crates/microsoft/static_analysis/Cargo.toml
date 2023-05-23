@@ -1,9 +1,9 @@
 [package]
-name = "broadsword_rtti"
+name = "broadsword_microsoft_static_analysis"
 version = "0.0.1"
 edition = "2021"
 
 [dependencies]
-regex = "1.7"
-msvc-demangler = "0.9"
+pelite = "0.10"
+broadsword_rtti = { path = "../rtti" }
 broadsword_address = { path = "../../address" }
