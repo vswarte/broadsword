@@ -6,8 +6,8 @@ use std::slice;
 use std::alloc;
 use std::collections;
 use std::collections::hash_map::Entry;
+use std::ops::Bound::{Included, Excluded};
 use std::cell::{Cell, RefCell, UnsafeCell};
-use std::sync::Mutex;
 
 use log::*;
 use paste::paste;
@@ -28,7 +28,7 @@ use crate::create_allocator_hook;
 create_allocator_hook!(heap, 0x142b821b0);
 
 pub(crate) unsafe fn hook() {
-    ALLOCATION_TABLE = Some(sync::RwLock::new(collections::HashMap::default()));
+    ALLOCATION_TABLE = Some(sync::RwLock::new(collections::BTreeMap::default()));
     BP_RESERVATION_TABLE = Some(sync::Mutex::new(collections::HashMap::default()));
 
     unsafe {
@@ -51,17 +51,20 @@ unsafe extern "system" fn exception_filter(exception_info: *mut EXCEPTION_POINTE
     match exception.ExceptionCode.0 {
         // STATUS_GUARD_PAGE_VIOLATION
         0x80000001 => {
-            info!("HIT PAGE GUARD");
             let address = exception.ExceptionInformation[1];
-            if !ALLOCATION_TABLE.as_ref().unwrap().read().unwrap().contains_key(&address) {
-                if instruction_ptr < 0x1459c5bff || instruction_ptr > 0x140000000 {
-                    return -1;
-                } else {
-                    return 0;
-                }
-            }
 
-            format_context(&context);
+            let range = {
+                let nth_page = address / 4096;
+                let lower = nth_page.clone() * 4096;
+                let upper = (nth_page.clone() + 1) * 4096;
+
+                (Included(lower), Excluded(upper))
+            };
+
+            if !ALLOCATION_TABLE.as_ref().unwrap().read().unwrap().range(range).count() == 0 {
+                info!("MISS: {:#x}", address);
+                return 0;
+            }
 
             // Create slice of instruction bytes that RIP points to
             let instruction_slice = slice::from_raw_parts(
@@ -75,6 +78,7 @@ unsafe extern "system" fn exception_filter(exception_info: *mut EXCEPTION_POINTE
             ORIGINAL_CONTEXT.with_borrow_mut(|t| {
                 *t = context;
             });
+            info!("1");
 
             let sandbox_fn_alloc  = VirtualAlloc(
                 None,
@@ -100,21 +104,20 @@ unsafe extern "system" fn exception_filter(exception_info: *mut EXCEPTION_POINTE
                 sandbox_fn_slice[i.clone() + 1] = instruction_slice[i.clone()].clone();
             }
 
-            log_instruction_buffer(sandbox_fn_slice, sandbox_fn_alloc as usize);
+            let first = sandbox_fn_alloc as usize;
+            let second = first + 16;
 
             BP_TABLE.with_borrow_mut(|t| {
                 let mut table = t.as_mut().unwrap();
-
-                let first = sandbox_fn_alloc as usize;
                 table.insert(first.clone(), 0x0);
-
-                let second = first + 16;
                 table.insert(second, 0x1);
             });
+            info!("2");
 
             let sandbox_fn = mem::transmute::<*mut u8, fn()>(sandbox_fn_alloc);
             sandbox_fn();
-            
+            info!("After meme");
+
             VirtualFree(
                 sandbox_fn_alloc as *mut ffi::c_void,
                 0,
@@ -122,15 +125,14 @@ unsafe extern "system" fn exception_filter(exception_info: *mut EXCEPTION_POINTE
                 MEM_RELEASE,
             );
 
-            let result_context = RESULT_CONTEXT.with_borrow(|t| {
-                t.clone()
+            RESULT_CONTEXT.with_borrow(|t| {
+                ptr::copy_nonoverlapping(
+                    t as *const CONTEXT,
+                    (*exception_info).ContextRecord,
+                    1
+                );
             });
-
-            ptr::copy_nonoverlapping(
-                &result_context as *const CONTEXT,
-                (*exception_info).ContextRecord,
-                mem::size_of::<CONTEXT>()
-            );
+            info!("3");
 
             (*(*exception_info).ContextRecord).Rip = (instruction_ptr + instruction.len()) as u64;
 
@@ -138,55 +140,62 @@ unsafe extern "system" fn exception_filter(exception_info: *mut EXCEPTION_POINTE
         },
         // STATUS_BREAKPOINT
         0x80000003 => {
-            format_context(&context);
-            return BP_TABLE.with_borrow(|f| {
-                match f.as_ref().unwrap().get(&instruction_ptr) {
-                    None => 0,
-                    Some(e) => {
-                        match e {
-                            0x0 => {
-                                info!("HIT FIRST");
-                                let original_context = ORIGINAL_CONTEXT.with_borrow(|t| {
-                                    t.clone()
-                                });
-
-                                format_context(&original_context);
-
-                                *(*exception_info).ContextRecord = original_context;
-                                (*(*exception_info).ContextRecord).Rip = (instruction_ptr + 1) as u64;
-
-                                EMULATION_CONTEXT.with_borrow_mut(|t| {
-                                    *t = context;
-                                });
-                            },
-                            0x1 => {
-                                RESULT_CONTEXT.with_borrow_mut(|t| {
-                                    *t = context;
-                                });
-
-                                let emulation_context = EMULATION_CONTEXT.with_borrow(|t| {
-                                    t.clone()
-                                });
-
-                                ptr::copy_nonoverlapping(
-                                    &emulation_context as *const CONTEXT,
-                                    (*exception_info).ContextRecord,
-                                    mem::size_of::<CONTEXT>()
-                                );
-
-                                (*(*exception_info).ContextRecord).Rip = (instruction_ptr + 1) as u64;
-                            }
-                            _ => {
-                                error!("HIT UNKNOWN EMULATION HOOK PHASE");
-                                todo!("HIT UNKNOWN EMULATION HOOK PHASE");
-                            },
-                        };
-
-                        -1
-                    }
-                }
+            let bp_entry = BP_TABLE.with_borrow(|f| {
+                f.as_ref().unwrap().get(&instruction_ptr).map(|x| x.clone()).clone()
             });
-        }
+
+            match bp_entry {
+                None => 0,
+                Some(e) => {
+                    match e {
+                        0x0 => {
+                            ORIGINAL_CONTEXT.with_borrow(|t| {
+                                ptr::copy_nonoverlapping(
+                                    t as *const CONTEXT,
+                                    (*exception_info).ContextRecord,
+                                    1
+                                );
+                            });
+                            info!("4");
+
+                            (*(*exception_info).ContextRecord).Rip = (instruction_ptr + 1) as u64;
+
+                            EMULATION_CONTEXT.with_borrow_mut(|t| {
+                                *t = context;
+                            });
+                            info!("5");
+                        },
+                        0x1 => {
+                            RESULT_CONTEXT.with_borrow_mut(|t| {
+                                *t = context;
+                            });
+
+                            EMULATION_CONTEXT.with_borrow(|t| {
+                                ptr::copy_nonoverlapping(
+                                  t as *const CONTEXT,
+                                  (*exception_info).ContextRecord,
+                                  1
+                                );
+                            });
+
+                            format_context(&*(*exception_info).ContextRecord);
+
+                            info!("6");
+
+                            (*(*exception_info).ContextRecord).Rip = (instruction_ptr + 1) as u64;
+
+                            info!("Set RIP");
+                        }
+                        _ => {
+                            error!("HIT UNKNOWN EMULATION HOOK PHASE");
+                            todo!("HIT UNKNOWN EMULATION HOOK PHASE");
+                        },
+                    };
+
+                    -1
+                }
+            }
+        },
         _ => 0,
     }
 }
@@ -258,7 +267,7 @@ unsafe fn remove_breakpoint(ptr: usize) {
 }
 
 // No I don't want to talk about the mutexes
-static mut ALLOCATION_TABLE: Option<sync::RwLock<collections::HashMap<usize, AllocationTableEntry>>> = None;
+static mut ALLOCATION_TABLE: Option<sync::RwLock<collections::BTreeMap<usize, AllocationTableEntry>>> = None;
 static mut BP_RESERVATION_TABLE: Option<sync::Mutex<collections::HashMap<usize, u8>>> = None;
 
 thread_local! {

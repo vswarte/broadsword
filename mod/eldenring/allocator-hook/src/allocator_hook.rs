@@ -23,6 +23,7 @@ macro_rules! create_allocator_hook {
                         layout: alloc::Layout::from_size_align(size, alignment).unwrap(),
                     };
 
+                    info!("ADD: {:#x}", allocation);
                     {
                         let mut table = ALLOCATION_TABLE.as_mut().unwrap().write().unwrap();
                         table.insert(allocation, table_entry);

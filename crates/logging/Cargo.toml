@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 log = { workspace = true }
 log4rs = { workspace = true }
+log-panics = { version = "2", features = ["with-backtrace"]}

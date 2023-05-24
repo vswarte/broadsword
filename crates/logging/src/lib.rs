@@ -34,4 +34,6 @@ pub fn init(file: &str) {
         .unwrap();
 
     init_config(config).unwrap();
+
+    log_panics::init();
 }
