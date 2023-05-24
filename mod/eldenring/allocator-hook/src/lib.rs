@@ -1,4 +1,5 @@
 #![feature(map_entry_replace)]
+#![feature(local_key_cell_methods)]
 use std::mem;
 
 use detour::static_detour;

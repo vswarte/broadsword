@@ -41,6 +41,9 @@ unsafe extern "system" fn exception_filter(exception_info: *mut EXCEPTION_POINTE
         exception_record.ExceptionCode.0, exception_address, exception_module_string
     );
 
+    error!("EXCEPTION: {:#?}", exception_record);
+    // error!("CONTEXT: {:#?}", (*(*exception_info).ContextRecord));
+
     let instructions = read_instructions_to_end_of_function(exception_address as *const u8, None);
     if instructions.len() != 0 {
         log_instruction_buffer(instructions, exception_address);
