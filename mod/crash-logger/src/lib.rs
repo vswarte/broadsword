@@ -44,10 +44,10 @@ unsafe extern "system" fn exception_filter(exception_info: *mut EXCEPTION_POINTE
     error!("EXCEPTION: {:#?}", exception_record);
     // error!("CONTEXT: {:#?}", (*(*exception_info).ContextRecord));
 
-    let instructions = read_instructions_to_end_of_function(exception_address as *const u8, None);
-    if instructions.len() != 0 {
-        log_instruction_buffer(instructions, exception_address);
-    }
+    // let instructions = read_instructions_to_end_of_function(exception_address as *const u8, None);
+    // if instructions.len() != 0 {
+    //     log_instruction_buffer(instructions, exception_address);
+    // }
 
     ExceptionContinueSearch.0
 }

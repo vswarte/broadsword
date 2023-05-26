@@ -29,10 +29,8 @@ create_allocator_hook!(heap, 0x142b821b0);
 
 pub(crate) unsafe fn hook() {
     ALLOCATION_TABLE = Some(sync::RwLock::new(collections::BTreeMap::default()));
-    BP_RESERVATION_TABLE = Some(sync::Mutex::new(collections::HashMap::default()));
 
     unsafe {
-        // Place it first in the list so PAGE_GUARDs doesn't clutter more complex filters
         AddVectoredExceptionHandler(0x1, Some(exception_filter));
     }
 
@@ -53,6 +51,7 @@ unsafe extern "system" fn exception_filter(exception_info: *mut EXCEPTION_POINTE
         0x80000001 => {
             let address = exception.ExceptionInformation[1];
 
+            // Make range for memory page so we can query the allocation table
             let range = {
                 let nth_page = address / 4096;
                 let lower = nth_page.clone() * 4096;
@@ -61,84 +60,126 @@ unsafe extern "system" fn exception_filter(exception_info: *mut EXCEPTION_POINTE
                 (Included(lower), Excluded(upper))
             };
 
+            // Ensure the instruction is touching something we page guarded
             if !ALLOCATION_TABLE.as_ref().unwrap().read().unwrap().range(range).count() == 0 {
-                info!("MISS: {:#x}", address);
                 return 0;
             }
 
+            // Disassemble the touching instruction
             // Create slice of instruction bytes that RIP points to
             let instruction_slice = slice::from_raw_parts(
                 exception.ExceptionAddress as *const u8,
                 0x100
             );
 
+            // Do the actual disassembling
             let mut decoder = Decoder::new(64, instruction_slice, DecoderOptions::NONE);
             let instruction = decoder.decode();
 
+            // Store the original instructions context
+            ORIGINAL_RSP.with_borrow_mut(|t| {
+                let rsp = context.Rsp.clone();
+                info!("Setting original RSP: {:x}", rsp);
+                *t = rsp;
+            });
+
             ORIGINAL_CONTEXT.with_borrow_mut(|t| {
+                info!("Original context from page guard hook");
+                format_context(&*(*exception_info).ContextRecord);
                 *t = context;
             });
-            info!("1");
 
+            // TODO: we can store this alloc in a TLS slot and clean up with nops after every run
+            // Build instruction buffer
             let sandbox_fn_alloc  = VirtualAlloc(
                 None,
-                18,
+                0x18,
                 MEM_COMMIT | MEM_RESERVE,
                 PAGE_EXECUTE_READWRITE
             ) as *mut u8;
 
             let sandbox_fn_slice = slice::from_raw_parts_mut(
                 sandbox_fn_alloc,
-                18
+                0x18
             );
 
-            for i in 0..18 {
-                sandbox_fn_slice[i] = 0x90 as u8;
-            }
-
-            sandbox_fn_slice[0] = 0xCC as u8;
-            sandbox_fn_slice[sandbox_fn_slice.len() - 2] = 0xCC as u8;
-            sandbox_fn_slice[sandbox_fn_slice.len() - 1] = 0xC3 as u8;
+            // 0:  54                      push   rsp
+            // 1:  cc                      int3
+            // 2:  90                      nop
+            // 3:  90                      nop
+            // 4:  90                      nop
+            // 5:  90                      nop
+            // 6:  90                      nop
+            // 7:  90                      nop
+            // 8:  90                      nop
+            // 9:  90                      nop
+            // a:  90                      nop
+            // b:  90                      nop
+            // c:  90                      nop
+            // d:  90                      nop
+            // e:  90                      nop
+            // f:  90                      nop
+            // 10: 90                      nop
+            // 11: 48 8b 64 24 f8          mov    rsp,QWORD PTR [rsp-0x8]
+            // 16: cc                      int3
+            // 17: c3                      ret
+            let template: [u8; 0x18] = [
+                0x54,
+                0xCC,
+                0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90,
+                0x48, 0x8B, 0x64, 0x24, 0xF8,
+                0xCC,
+                0xC3
+            ];
+            sandbox_fn_slice.copy_from_slice(&template);
 
             for i in 0..instruction.len() {
-                sandbox_fn_slice[i.clone() + 1] = instruction_slice[i.clone()].clone();
+                sandbox_fn_slice[i.clone() + 2] = instruction_slice[i.clone()].clone();
             }
 
-            let first = sandbox_fn_alloc as usize;
-            let second = first + 16;
+            log_instruction_buffer(sandbox_fn_slice, 0x0);
 
             BP_TABLE.with_borrow_mut(|t| {
                 let mut table = t.as_mut().unwrap();
-                table.insert(first.clone(), 0x0);
-                table.insert(second, 0x1);
+                table.insert((sandbox_fn_alloc as usize) + 0x1, 0x0);
+                table.insert((sandbox_fn_alloc as usize) + 0x16, 0x1);
             });
-            info!("2");
 
-            let sandbox_fn = mem::transmute::<*mut u8, fn()>(sandbox_fn_alloc);
-            sandbox_fn();
-            info!("After meme");
+            mem::transmute::<*mut u8, unsafe extern "system" fn()>(sandbox_fn_alloc)();
+            info!("Hit after");
 
-            VirtualFree(
-                sandbox_fn_alloc as *mut ffi::c_void,
-                0,
-                // TODO: MAKE FUCKING MEM_DECOMMIT COUNT
-                MEM_RELEASE,
-            );
+            // VirtualFree(
+            //     sandbox_fn_alloc as *mut ffi::c_void,
+            //     0,
+            //     MEM_RELEASE,
+            // );
+
 
             RESULT_CONTEXT.with_borrow(|t| {
+                info!("Overwriting original exception context");
                 ptr::copy_nonoverlapping(
                     t as *const CONTEXT,
                     (*exception_info).ContextRecord,
                     1
                 );
+                info!("Overwritten original exception context");
             });
-            info!("3");
+
+            info!("Restoring original RSP");
+            let original_rsp = ORIGINAL_RSP.with_borrow(|t| {
+                t.clone()
+            });
+
+            info!("Restoring original RSP: {:x}", original_rsp);
 
             (*(*exception_info).ContextRecord).Rip = (instruction_ptr + instruction.len()) as u64;
+            (*(*exception_info).ContextRecord).Rsp = original_rsp as u64;
+
+            info!("Yielding control back to game flow...");
+            format_context(&*(*exception_info).ContextRecord);
 
             -1
         },
-        // STATUS_BREAKPOINT
         0x80000003 => {
             let bp_entry = BP_TABLE.with_borrow(|f| {
                 f.as_ref().unwrap().get(&instruction_ptr).map(|x| x.clone()).clone()
@@ -149,6 +190,18 @@ unsafe extern "system" fn exception_filter(exception_info: *mut EXCEPTION_POINTE
                 Some(e) => {
                     match e {
                         0x0 => {
+                            let rsp = (*(*exception_info).ContextRecord).Rsp.clone();
+
+                            ORIGINAL_RIP.with_borrow_mut(|t| {
+                                let rip = *((context.Rsp + 0x8) as *const u64);
+                                info!("Setting original RIP: {:x}", rip);
+                                *t = rip;
+                            });
+
+                            EMULATION_CONTEXT.with_borrow_mut(|t| {
+                                *t = context.clone();
+                            });
+
                             ORIGINAL_CONTEXT.with_borrow(|t| {
                                 ptr::copy_nonoverlapping(
                                     t as *const CONTEXT,
@@ -156,19 +209,22 @@ unsafe extern "system" fn exception_filter(exception_info: *mut EXCEPTION_POINTE
                                     1
                                 );
                             });
-                            info!("4");
 
+                            (*(*exception_info).ContextRecord).Rsp = rsp;
                             (*(*exception_info).ContextRecord).Rip = (instruction_ptr + 1) as u64;
 
-                            EMULATION_CONTEXT.with_borrow_mut(|t| {
-                                *t = context;
-                            });
-                            info!("5");
+                            info!("First INT3 restored context");
+                            format_context(&*(*exception_info).ContextRecord);
                         },
+
                         0x1 => {
+                            info!("Hit second BP");
                             RESULT_CONTEXT.with_borrow_mut(|t| {
                                 *t = context;
                             });
+
+                            info!("Original context after sandboxed instruction");
+                            format_context(&*(*exception_info).ContextRecord);
 
                             EMULATION_CONTEXT.with_borrow(|t| {
                                 ptr::copy_nonoverlapping(
@@ -178,13 +234,20 @@ unsafe extern "system" fn exception_filter(exception_info: *mut EXCEPTION_POINTE
                                 );
                             });
 
+                            info!("Context after emulation context restore");
                             format_context(&*(*exception_info).ContextRecord);
 
-                            info!("6");
+                            let new_rip = ORIGINAL_RIP.with_borrow_mut(|t| {
+                                t.clone()
+                            });
+                            let module = get_module_pointer_belongs_to(new_rip as usize);
+                            info!("New RIP: {:x} {:?}", new_rip, module);
 
-                            (*(*exception_info).ContextRecord).Rip = (instruction_ptr + 1) as u64;
+                            // (*(*exception_info).ContextRecord).Rsp += 0x8;
+                            (*(*exception_info).ContextRecord).Rip = new_rip;
 
-                            info!("Set RIP");
+                            info!("About to release control from second BP");
+                            format_context(&*(*exception_info).ContextRecord);
                         }
                         _ => {
                             error!("HIT UNKNOWN EMULATION HOOK PHASE");
@@ -217,63 +280,23 @@ fn format_context(c: &CONTEXT) {
     info!("R15: {:#x}", c.R15);
     info!("RBP: {:#x}", c.Rbp);
     info!("RSP: {:#x}", c.Rsp);
+    info!("RSP[0]: {:#x}", unsafe { *(c.Rsp as *const usize) });
+    info!("RSP[1]: {:#x}", unsafe { *((c.Rsp + 0x8) as *const usize) });
+    info!("RSP[2]: {:#x}", unsafe { *((c.Rsp + 0x16) as *const usize) });
     info!("RDI: {:#x}", c.Rdi);
     info!("RSI: {:#x}", c.Rsi);
     info!("SEG GS: {:#x}", c.SegGs);
 }
 
-unsafe fn place_breakpoint(ptr: usize) {
-    let mut byte_ptr = ptr.clone() as *mut u8;
-    let original_byte = *byte_ptr.clone();
-
-    if ptr > 0x1459c5bff || ptr < 0x140000000 {
-        warn!("Tried placing BP in area outside of expected range {:#x}", ptr);
-        match get_module_pointer_belongs_to(ptr) {
-            Some(m) => warn!("Found module for {:#x}: {}", ptr, m.name),
-            None => warn!("Could not find module for {:#x}", ptr),
-        }
-
-        return;
-    }
-
-    *byte_ptr = 0xCC as u8;
-
-    FlushInstructionCache(
-        HANDLE(-1),
-        Some(ptr.clone() as *const ffi::c_void),
-        15
-    );
-
-    {
-        let mut table = BP_RESERVATION_TABLE.as_mut().unwrap().lock().unwrap();
-        table.insert(ptr, original_byte);
-    }
-}
-
-unsafe fn remove_breakpoint(ptr: usize) {
-    let mut byte_ptr = ptr as *mut u8;
-    *byte_ptr = {
-        let mut table = BP_RESERVATION_TABLE.as_ref().unwrap().lock().unwrap();
-        table.get(&ptr).unwrap().clone()
-    };
-
-    info!("Restored byte: {:#x} {:#x}", byte_ptr as usize, *byte_ptr);
-
-    FlushInstructionCache(
-        HANDLE(-1),
-        Some(ptr.clone() as *const ffi::c_void),
-        15
-    );
-}
-
 // No I don't want to talk about the mutexes
 static mut ALLOCATION_TABLE: Option<sync::RwLock<collections::BTreeMap<usize, AllocationTableEntry>>> = None;
-static mut BP_RESERVATION_TABLE: Option<sync::Mutex<collections::HashMap<usize, u8>>> = None;
 
 thread_local! {
     static REGUARD_TABLE: RefCell<Option<collections::HashMap<usize, usize>>> = RefCell::default();
     static BP_TABLE: RefCell<Option<collections::HashMap<usize, u8>>> = RefCell::default();
 
+    static ORIGINAL_RSP: RefCell<u64> = RefCell::default();
+    static ORIGINAL_RIP: RefCell<u64> = RefCell::default();
     static ORIGINAL_CONTEXT: RefCell<CONTEXT> = RefCell::default();
     static EMULATION_CONTEXT: RefCell<CONTEXT> = RefCell::default();
     static RESULT_CONTEXT: RefCell<CONTEXT> = RefCell::default();
