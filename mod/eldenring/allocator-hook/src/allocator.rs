@@ -40,14 +40,13 @@ pub(crate) unsafe fn hook() {
 #[allow(overflowing_literals)]
 unsafe extern "system" fn exception_filter(exception_info: *mut EXCEPTION_POINTERS) -> i32 {
     init_reguard_table();
-    init_breakpoint_table();
 
     let mut exception = *(*exception_info).ExceptionRecord;
-    let instruction_ptr = exception.ExceptionAddress as usize;
 
     match exception.ExceptionCode.0 {
         // STATUS_GUARD_PAGE_VIOLATION
         0x80000001 => {
+            let instruction_ptr = exception.ExceptionAddress as usize;
             let address = exception.ExceptionInformation[1];
 
             // Make range for memory page so we can query the allocation table
@@ -69,29 +68,35 @@ unsafe extern "system" fn exception_filter(exception_info: *mut EXCEPTION_POINTE
             -1
         },
         0x80000003 => {
-            let bp_entry = BP_TABLE.with_borrow(|f| {
-                f.as_ref().unwrap().get(&instruction_ptr).map(|x| x.clone()).clone()
-            });
-
-            match bp_entry {
-                None => 0,
-                Some(phase) => {
-                    handle_sandbox_breakpoint(phase.clone(), exception_info);
+            let context = *(*exception_info).ContextRecord;
+            let phase = get_sandbox_phase_for_bp(context.Rip - 0x1);
+            info!("Got phase {:?}", phase);
+            match phase {
+                SandboxPhase::Before => {
+                    handle_before_bp(exception_info);
                     -1
-                }
+                },
+                SandboxPhase::After => {
+                    handle_after_bp(exception_info);
+                    -1
+                },
+                SandboxPhase::None => 0,
             }
         },
         _ => 0,
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum SandboxPhase {
     Before,
     After,
+    None,
 }
 
 unsafe fn handle_pageguard_breakpoint(exception_info: *mut EXCEPTION_POINTERS) {
+    let mut exception = *(*exception_info).ExceptionRecord;
+    let instruction_ptr = exception.ExceptionAddress as usize;
     let mut context = *(*exception_info).ContextRecord;
 
     // Disassemble the accessing instruction
@@ -112,11 +117,7 @@ unsafe fn handle_pageguard_breakpoint(exception_info: *mut EXCEPTION_POINTERS) {
         *t = rsp;
     });
 
-    ORIGINAL_CONTEXT.with_borrow_mut(|t| {
-        info!("Original context from page guard hook");
-        log_exception_context(&*(*exception_info).ContextRecord);
-        *t = context;
-    });
+    store_original_context(&context);
 
     // TODO: we can store this alloc in a TLS slot and clean up with nops after every run
     // Build instruction buffer
@@ -166,13 +167,12 @@ unsafe fn handle_pageguard_breakpoint(exception_info: *mut EXCEPTION_POINTERS) {
         sandbox_fn_slice[i.clone() + 2] = instruction_slice[i.clone()].clone();
     }
 
-    log_instruction_buffer(sandbox_fn_slice, 0x0);
+    log_instruction_buffer(sandbox_fn_slice, sandbox_fn_alloc as usize);
 
-    BP_TABLE.with_borrow_mut(|t| {
-        let mut table = t.as_mut().unwrap();
-        table.insert((sandbox_fn_alloc as usize) + 0x1, SandboxPhase::Before);
-        table.insert((sandbox_fn_alloc as usize) + 0x16, SandboxPhase::After);
-    });
+    // Store pointers to first and second INT3
+    // insert_breakpoint((sandbox_fn_alloc as usize) + 0x1, SandboxPhase::Before);
+    // insert_breakpoint((sandbox_fn_alloc as usize) + 0x16, SandboxPhase::After);
+    register_sandbox_bps(sandbox_fn_alloc as u64);
 
     mem::transmute::<*mut u8, unsafe extern "system" fn()>(sandbox_fn_alloc)();
     info!("Hit after");
@@ -183,15 +183,8 @@ unsafe fn handle_pageguard_breakpoint(exception_info: *mut EXCEPTION_POINTERS) {
         MEM_RELEASE,
     );
 
-    RESULT_CONTEXT.with_borrow(|t| {
-        info!("Overwriting original exception context");
-        ptr::copy_nonoverlapping(
-            t as *const CONTEXT,
-            (*exception_info).ContextRecord,
-            1
-        );
-        info!("Overwritten original exception context");
-    });
+    let new_context = get_result_context();
+    set_context(&new_context, &mut *(*exception_info).ContextRecord);
 
     info!("Restoring original RSP");
     let original_rsp = ORIGINAL_RSP.with_borrow(|t| {
@@ -207,73 +200,55 @@ unsafe fn handle_pageguard_breakpoint(exception_info: *mut EXCEPTION_POINTERS) {
     log_exception_context(&*(*exception_info).ContextRecord);
 }
 
-unsafe fn handle_sandbox_breakpoint(phase: SandboxPhase, exception_info: *mut EXCEPTION_POINTERS) {
+unsafe fn handle_before_bp(exception_info: *mut EXCEPTION_POINTERS) {
     let mut exception = *(*exception_info).ExceptionRecord;
     let mut context = *(*exception_info).ContextRecord;
     let instruction_ptr = exception.ExceptionAddress as usize;
 
-    match phase {
-        SandboxPhase::Before => {
-            info!("Hit before BP");
-            let rsp = (*(*exception_info).ContextRecord).Rsp.clone();
+    info!("Hit first BP");
+    let rsp = (*(*exception_info).ContextRecord).Rsp.clone();
 
-            ORIGINAL_RIP.with_borrow_mut(|t| {
-                let rip = *((context.Rsp + 0x8) as *const u64);
-                info!("Setting original RIP: {:x}", rip);
-                *t = rip;
-            });
+    // Retrieve RIP from stack. As the first instruction in our sandbox is a PUSH RSP
+    // we'll need to go down by 0x8 bytes.
+    let rip = *((context.Rsp + 0x8) as *const u64);
+    store_original_rip(rip);
 
-            EMULATION_CONTEXT.with_borrow_mut(|t| {
-                *t = context.clone();
-            });
+    store_emulation_context(&context);
 
-            ORIGINAL_CONTEXT.with_borrow(|t| {
-                ptr::copy_nonoverlapping(
-                    t as *const CONTEXT,
-                    (*exception_info).ContextRecord,
-                    1
-                );
-            });
+    let new_context = get_original_context();
+    set_context(&new_context, &mut *(*exception_info).ContextRecord);
 
-            (*(*exception_info).ContextRecord).Rsp = rsp;
-            (*(*exception_info).ContextRecord).Rip = (instruction_ptr + 1) as u64;
+    (*(*exception_info).ContextRecord).Rsp = rsp;
+    (*(*exception_info).ContextRecord).Rip = (*(*exception_info).ContextRecord).Rip + 1;
 
-            info!("First INT3 restored context");
-            log_exception_context(&*(*exception_info).ContextRecord);
-        },
+    info!("First INT3 restored context");
+    log_exception_context(&*(*exception_info).ContextRecord);
+}
 
-        SandboxPhase::After => {
-            info!("Hit after BP");
-            RESULT_CONTEXT.with_borrow_mut(|t| {
-                *t = context;
-            });
+unsafe fn handle_after_bp(exception_info: *mut EXCEPTION_POINTERS) {
+    let mut context = *(*exception_info).ContextRecord;
 
-            info!("Original context after sandboxed instruction");
-            log_exception_context(&*(*exception_info).ContextRecord);
+    info!("Hit second BP");
+    store_result_context(&context);
 
-            EMULATION_CONTEXT.with_borrow(|t| {
-                ptr::copy_nonoverlapping(
-                    t as *const CONTEXT,
-                    (*exception_info).ContextRecord,
-                    1
-                );
-            });
+    info!("Original context after sandboxed instruction");
+    log_exception_context(&*(*exception_info).ContextRecord);
 
-            info!("Context after emulation context restore");
-            log_exception_context(&*(*exception_info).ContextRecord);
+    let new_context = get_emulation_context();
+    set_context(&new_context, &mut *(*exception_info).ContextRecord);
 
-            let new_rip = ORIGINAL_RIP.with_borrow_mut(|t| {
-                t.clone()
-            });
-            let module = get_module_pointer_belongs_to(new_rip as usize);
-            info!("New RIP: {:x} {:?}", new_rip, module);
+    info!("Context after emulation context restore");
+    log_exception_context(&*(*exception_info).ContextRecord);
 
-            (*(*exception_info).ContextRecord).Rip = new_rip;
+    let new_rip = get_original_rip();
 
-            info!("About to release control from second BP");
-            log_exception_context(&*(*exception_info).ContextRecord);
-        }
-    };
+    let module = get_module_pointer_belongs_to(new_rip as usize);
+    info!("New RIP: {:x} {:?}", new_rip, module);
+
+    (*(*exception_info).ContextRecord).Rip = new_rip;
+
+    info!("About to release control from second BP");
+    log_exception_context(&*(*exception_info).ContextRecord);
 }
 
 fn log_exception_context(c: &CONTEXT) {
@@ -305,14 +280,112 @@ fn log_exception_context(c: &CONTEXT) {
 static mut ALLOCATION_TABLE: Option<sync::RwLock<collections::BTreeMap<usize, AllocationTableEntry>>> = None;
 
 thread_local! {
-    static REGUARD_TABLE: RefCell<Option<collections::HashMap<usize, usize>>> = RefCell::default();
-    static BP_TABLE: RefCell<Option<collections::HashMap<usize, SandboxPhase>>> = RefCell::default();
+    static SANDBOX_BEFORE_BP: RefCell<u64> = RefCell::default();
+    static SANDBOX_AFTER_BP: RefCell<u64> = RefCell::default();
+}
 
+fn register_sandbox_bps(base: u64) {
+    SANDBOX_BEFORE_BP.with_borrow_mut(|t| {
+        *t = base + 0x1;
+    });
+
+    SANDBOX_AFTER_BP.with_borrow_mut(|t| {
+        *t = base + 0x16;
+    });
+}
+
+fn get_sandbox_phase_for_bp(ptr: u64) -> SandboxPhase {
+    let before = SANDBOX_BEFORE_BP.with_borrow(|t| t.clone());
+    let after = SANDBOX_AFTER_BP.with_borrow(|t| t.clone());
+    info!("Current {:#x}", before);
+    info!("Before {:#x}", before);
+    info!("After {:#x}", after);
+
+    match ptr {
+        before => SandboxPhase::Before,
+        after  => SandboxPhase::After,
+        _ => {
+            SandboxPhase::None
+        },
+    }
+}
+
+thread_local! {
     static ORIGINAL_RSP: RefCell<u64> = RefCell::default();
     static ORIGINAL_RIP: RefCell<u64> = RefCell::default();
     static ORIGINAL_CONTEXT: RefCell<CONTEXT> = RefCell::default();
     static EMULATION_CONTEXT: RefCell<CONTEXT> = RefCell::default();
     static RESULT_CONTEXT: RefCell<CONTEXT> = RefCell::default();
+}
+
+fn store_original_rip(rip: u64) {
+    ORIGINAL_RIP.with_borrow_mut(|t| {
+        info!("Setting original RIP: {:x}", rip);
+        *t = rip;
+    });
+}
+
+fn get_original_rip() -> u64 {
+    ORIGINAL_RIP.with_borrow_mut(|t| {
+        t.clone()
+    })
+}
+
+fn store_original_context(context: &CONTEXT) {
+    ORIGINAL_CONTEXT.with_borrow_mut(|t| {
+        // info!("Original context from page guard hook");
+        // log_exception_context(context);
+
+        *t = context.clone();
+    });
+}
+
+fn store_emulation_context(context: &CONTEXT) {
+    EMULATION_CONTEXT.with_borrow_mut(|t| {
+        // info!("Emulation context from BP1");
+        // log_exception_context(context);
+
+        *t = context.clone();
+    });
+}
+
+fn store_result_context(context: &CONTEXT) {
+    RESULT_CONTEXT.with_borrow_mut(|t| {
+        // info!("Result context from BP2");
+        // log_exception_context(context);
+
+        *t = context.clone();
+    });
+}
+
+fn get_original_context() -> CONTEXT {
+    ORIGINAL_CONTEXT.with_borrow(|t| {
+        t.clone()
+    })
+}
+
+fn get_emulation_context() -> CONTEXT {
+    EMULATION_CONTEXT.with_borrow(|t| {
+        t.clone()
+    })
+}
+
+fn get_result_context() -> CONTEXT {
+    RESULT_CONTEXT.with_borrow(|t| {
+        t.clone()
+    })
+}
+
+unsafe fn set_context(src: &CONTEXT, dst: &mut CONTEXT) {
+    ptr::copy_nonoverlapping(
+        src as *const CONTEXT,
+        dst as *mut CONTEXT,
+        1
+    );
+}
+
+thread_local! {
+    static REGUARD_TABLE: RefCell<Option<collections::HashMap<usize, usize>>> = RefCell::default();
 }
 
 fn init_reguard_table() {
@@ -323,17 +396,8 @@ fn init_reguard_table() {
     });
 }
 
-fn init_breakpoint_table() {
-    BP_TABLE.with_borrow_mut(|f| {
-        if f.is_none() {
-            *f = Some(collections::HashMap::default());
-        }
-    });
-}
-
 struct AllocationTableEntry {
     pub name: Option<String>,
-    // pub invalidated: bool,
     pub layout: alloc::Layout,
 }
 
