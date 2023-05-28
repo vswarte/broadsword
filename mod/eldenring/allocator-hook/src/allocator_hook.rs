@@ -27,7 +27,7 @@ macro_rules! create_allocator_hook {
                         }
                     };
 
-                    // info!("ADD: {:#?}", table_entry);
+                    // info!("Allocated {:#x} bytes at {:#x}", size, allocation);
                     {
                         let mut table = ALLOCATION_TABLE.as_mut().unwrap().write().unwrap();
                         table.insert(allocation, table_entry);
@@ -54,6 +54,8 @@ macro_rules! create_allocator_hook {
                         let mut table = ALLOCATION_TABLE.as_mut().unwrap().write().unwrap();
                         table.remove(&ptr)
                     };
+
+                    // info!("Freed memory associated with {:#x}", ptr);
 
                     // match deallocated_entry {
                     //     Some(e) => debug!("Removed allocation table entry {:?}", ptr),

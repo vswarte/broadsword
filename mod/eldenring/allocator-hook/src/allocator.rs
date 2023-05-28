@@ -1,4 +1,4 @@
-use std::{ffi, ops};
+use std::{ffi, fmt, ops};
 use std::ptr;
 use std::mem;
 use std::sync;
@@ -10,6 +10,8 @@ use std::collections;
 use std::collections::hash_map::Entry;
 use std::ops::Bound::{Included, Excluded};
 use std::cell::{Cell, RefCell, UnsafeCell};
+use std::fmt::write;
+use std::slice::SliceIndex;
 
 use log::*;
 use paste::paste;
@@ -29,7 +31,8 @@ use crate::{create_allocator_hook, entry};
 
 create_allocator_hook!(heap, 0x142b821b0);
 
-pub(crate) unsafe fn hook() {
+#[no_mangle]
+pub(crate) unsafe fn EnableAllocatorHooks() {
     ALLOCATION_TABLE = Some(sync::RwLock::new(collections::BTreeMap::default()));
 
     let (tx, rx): (mpsc::Sender<AccessEvent>, mpsc::Receiver<AccessEvent>) = mpsc::channel();
@@ -66,25 +69,35 @@ pub(crate) unsafe fn hook() {
                 continue;
             }
 
-            let (ptr, size) = allocation.unwrap();
-            if event.is_write {
-                let data = get_written_data(
-                    sample_instruction(event.instruction_address),
-                    &event.context
-                );
-                info!("Data: {:#?}", data);
+            if !event.is_write {
+                continue;
             }
 
-            // if event.access_address == ptr {
-                // match runtime::get_rtti_classname(ptr.into()) {
-                //     None => {}
-                //     Some(c) => {
-                //         info!("From sidekick thread: {:#x} (size: {:#x} got reassigned to class {}", ptr, size, c);
-                //         let instruction = sample_instruction(event.instruction_address);
-                //         log_instruction(instruction);
-                //         log_exception_context(&event.context);
-                //     }
-                // }
+            let (allocation_ptr, size) = allocation.unwrap();
+            if allocation_ptr != event.access_address {
+                continue;
+            }
+
+            // let mutation = get_mutation(
+            //     event.instruction,
+            //     &event.context
+            // );
+            //
+            // match mutation {
+            //     Mutation::Set(value) => {
+            //         match value {
+            //             RegisterValue::Byte8(v) => {
+            //                 match runtime::get_rtti_classname((v as usize).into()) {
+            //                     None => {}
+            //                     Some(c) => {
+            //                         info!("{:#x} (size: {:#x} got reassigned to class {:#x} {})", allocation_ptr, size, v, c);
+            //                     }
+            //                 }
+            //             }
+            //             _ => {}
+            //         }
+            //     }
+            //     _ => {}
             // }
         }
     });
@@ -96,8 +109,7 @@ pub(crate) unsafe fn hook() {
     heap();
 }
 
-#[derive(Debug)]
-enum WrittenData {
+enum RegisterValue {
     Byte1(u8),
     Byte2(u16),
     Byte4(u32),
@@ -105,32 +117,153 @@ enum WrittenData {
     Unknown,
 }
 
-fn get_written_data(instruction: Instruction, context: &CONTEXT) -> WrittenData {
-    log_instruction(instruction);
-    log_exception_context(context);
+impl fmt::Debug for RegisterValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RegisterValue::Byte1(v) => write!(f, "BYTE({:#x})", v),
+            RegisterValue::Byte2(v) => write!(f, "SHORT({:#x})", v),
+            RegisterValue::Byte4(v) => write!(f, "DWORD({:#x})", v),
+            RegisterValue::Byte8(v) => write!(f, "QWORD({:#x})", v),
+            RegisterValue::Unknown => write!(f, "UNKNOWN"),
+        }
+    }
+}
+
+
+enum RegisterSize {
+    Byte1,
+    Byte2,
+    Byte4,
+    Byte8,
+}
+
+#[derive(Debug)]
+enum Mutation {
+    Set(RegisterValue),
+    Add(RegisterValue),
+    Subtract(RegisterValue),
+    Increment(usize),
+    Decrement(usize),
+    Unknown,
+}
+
+fn get_mutation(instruction: Instruction, context: &CONTEXT) -> Mutation {
     match instruction.mnemonic() {
+        // Mnemonic::Inc => Mutation::Increment(instruction.op0_register().size()),
+        // Mnemonic::Dec => Mutation::Decrement(instruction.op0_register().size()),
+        //
+        // Mnemonic::Xadd => {
+        //     let value = match instruction.op1_register() {
+        //         Register::None => {
+        //             log_instruction(instruction);
+        //             RegisterValue::Unknown
+        //         },
+        //         _ => sample_register(instruction.op1_register(), context),
+        //     };
+        //
+        //     Mutation::Add(value)
+        // },
+
         Mnemonic::Mov => {
-            match instruction.op1_register() {
-                Register::RDI => WrittenData::Byte8(context.Rdi),
-                Register::RSI => WrittenData::Byte8(context.Rsi),
-                Register::RBP => WrittenData::Byte8(context.Rbp),
-                Register::RAX => WrittenData::Byte8(context.Rax),
-                Register::RBX => WrittenData::Byte8(context.Rbx),
-                Register::RCX => WrittenData::Byte8(context.Rcx),
-                Register::RDX => WrittenData::Byte8(context.Rdx),
-                Register::R8 => WrittenData::Byte8(context.R8),
-                Register::R9 => WrittenData::Byte8(context.R9),
-                Register::R14 => WrittenData::Byte8(context.R14),
-                Register::R15 => WrittenData::Byte8(context.R15),
-                _ => {
-                    warn!("Got unknown op1 register! {:#?}", instruction.op1_register());
-                    WrittenData::Unknown
-                }
-            }
+            let value = match instruction.op1_register() {
+                Register::None => {
+                    log_instruction(instruction);
+                    RegisterValue::Unknown
+                },
+                _ => sample_register(instruction.op1_register(), context),
+            };
+
+            Mutation::Set(value)
         },
+
         _ => {
-            warn!("Got unknown mnemonic! {:#?}", instruction.mnemonic());
-            WrittenData::Unknown
+            // warn!("Got unknown mnemonic! {:#?}", instruction.mnemonic());
+            // log_instruction(instruction);
+            // log_exception_context(context);
+            Mutation::Unknown
+        }
+    }
+}
+
+fn sample_register(register: Register, context: &CONTEXT) -> RegisterValue {
+    match register {
+        Register::DIL => RegisterValue::Byte1(context.Rdi as u8),
+        Register::DI => RegisterValue::Byte2(context.Rdi as u16),
+        Register::EDI => RegisterValue::Byte4(context.Rdi as u32),
+        Register::RDI => RegisterValue::Byte8(context.Rdi),
+
+        Register::SIL => RegisterValue::Byte1(context.Rsi as u8),
+        Register::SI => RegisterValue::Byte2(context.Rsi as u16),
+        Register::ESI => RegisterValue::Byte4(context.Rsi as u32),
+        Register::RSI => RegisterValue::Byte8(context.Rsi),
+
+        Register::BPL => RegisterValue::Byte1(context.Rbp as u8),
+        Register::BP => RegisterValue::Byte2(context.Rbp as u16),
+        Register::EBP => RegisterValue::Byte4(context.Rbp as u32),
+        Register::RBP => RegisterValue::Byte8(context.Rbp),
+
+        Register::AL => RegisterValue::Byte1(context.Rax as u8),
+        Register::AX => RegisterValue::Byte2(context.Rax as u16),
+        Register::EAX => RegisterValue::Byte4(context.Rax as u32),
+        Register::RAX => RegisterValue::Byte8(context.Rax as u64),
+
+        Register::BL => RegisterValue::Byte1(context.Rbx as u8),
+        Register::BX => RegisterValue::Byte2(context.Rbx as u16),
+        Register::EBX => RegisterValue::Byte4(context.Rbx as u32),
+        Register::RBX => RegisterValue::Byte8(context.Rbx),
+
+        Register::CL => RegisterValue::Byte1(context.Rcx as u8),
+        Register::CX => RegisterValue::Byte2(context.Rcx as u16),
+        Register::ECX => RegisterValue::Byte4(context.Rcx as u32),
+        Register::RCX => RegisterValue::Byte8(context.Rcx),
+
+        Register::DL => RegisterValue::Byte1(context.Rdx as u8),
+        Register::DX => RegisterValue::Byte2(context.Rdx as u16),
+        Register::EDX => RegisterValue::Byte4(context.Rdx as u32),
+        Register::RDX => RegisterValue::Byte8(context.Rdx),
+
+        Register::R8L => RegisterValue::Byte1(context.R8 as u8),
+        Register::R8W => RegisterValue::Byte2(context.R8 as u16),
+        Register::R8D => RegisterValue::Byte4(context.R8 as u32),
+        Register::R8 => RegisterValue::Byte8(context.R8),
+
+        Register::R9L => RegisterValue::Byte1(context.R9 as u8),
+        Register::R9W => RegisterValue::Byte2(context.R9 as u16),
+        Register::R9D => RegisterValue::Byte4(context.R9 as u32),
+        Register::R9 => RegisterValue::Byte8(context.R9),
+
+        Register::R10L => RegisterValue::Byte1(context.R10 as u8),
+        Register::R10W => RegisterValue::Byte2(context.R10 as u16),
+        Register::R10D => RegisterValue::Byte4(context.R10 as u32),
+        Register::R10 => RegisterValue::Byte8(context.R10),
+
+        Register::R11L => RegisterValue::Byte1(context.R11 as u8),
+        Register::R11W => RegisterValue::Byte2(context.R11 as u16),
+        Register::R11D => RegisterValue::Byte4(context.R11 as u32),
+        Register::R11 => RegisterValue::Byte8(context.R11),
+
+        Register::R12L => RegisterValue::Byte1(context.R12 as u8),
+        Register::R12W => RegisterValue::Byte2(context.R12 as u16),
+        Register::R12D => RegisterValue::Byte4(context.R12 as u32),
+        Register::R12 => RegisterValue::Byte8(context.R12),
+
+        Register::R13L => RegisterValue::Byte1(context.R13 as u8),
+        Register::R13W => RegisterValue::Byte2(context.R13 as u16),
+        Register::R13D => RegisterValue::Byte4(context.R13 as u32),
+        Register::R13 => RegisterValue::Byte8(context.R13),
+
+        Register::R14L => RegisterValue::Byte1(context.R14 as u8),
+        Register::R14W => RegisterValue::Byte2(context.R14 as u16),
+        Register::R14D => RegisterValue::Byte4(context.R14 as u32),
+        Register::R14 => RegisterValue::Byte8(context.R14),
+
+        Register::R15L => RegisterValue::Byte1(context.R15 as u8),
+        Register::R15W => RegisterValue::Byte2(context.R15 as u16),
+        Register::R15D => RegisterValue::Byte4(context.R15 as u32),
+        Register::R15 => RegisterValue::Byte8(context.R15),
+        _ => {
+            warn!("Got unknown register! {:#?}", register);
+            RegisterValue::Unknown
         }
     }
 }
@@ -158,6 +291,7 @@ unsafe extern "system" fn exception_filter(exception_info: *mut EXCEPTION_POINTE
 
 unsafe fn handle_pageguard_breakpoint(exception_info: *mut EXCEPTION_POINTERS) {
     let instruction_ptr = (*(*exception_info).ExceptionRecord).ExceptionAddress as u64;
+    set_instruction_address(instruction_ptr);
 
     let instruction = sample_instruction(instruction_ptr);
     let next_instruction_ptr = instruction_ptr + instruction.next_ip();
@@ -171,7 +305,6 @@ unsafe fn handle_pageguard_breakpoint(exception_info: *mut EXCEPTION_POINTERS) {
     let access_type = (*(*exception_info).ExceptionRecord).ExceptionInformation[0];
     let access_address = (*(*exception_info).ExceptionRecord).ExceptionInformation[1];
 
-    set_instruction_address(instruction_ptr.clone());
     set_reguard_address(access_address);
     set_is_write(access_type == 0x1);
 }
@@ -202,6 +335,7 @@ unsafe fn handle_step_breakpoint(exception_info: *mut EXCEPTION_POINTERS) {
 
     get_thread_access_channel()
         .send(AccessEvent {
+            instruction: sample_instruction(get_instruction_address()),
             instruction_address: get_instruction_address(),
             access_address: get_reguard_address(),
             is_write: get_is_write(),
@@ -209,8 +343,6 @@ unsafe fn handle_step_breakpoint(exception_info: *mut EXCEPTION_POINTERS) {
         })
         .unwrap();
 
-    // info!("Reapplying page guard at {:#x}", instruction_ptr);
-    // let mut exception = *(*exception_info).ExceptionRecord;
     set_pageguard(get_reguard_address().into());
 }
 
@@ -245,6 +377,7 @@ static mut ACCESS_CHANNEL_TX: Option<mpsc::Sender<AccessEvent>> = None;
 
 struct AccessEvent {
     pub instruction_address: u64,
+    pub instruction: Instruction,
     pub access_address: usize,
     pub is_write: bool,
     pub context: CONTEXT,
@@ -355,5 +488,5 @@ pub fn log_instruction(instruction: Instruction) {
 
     output.clear();
     formatter.format(&instruction, &mut output);
-    info!("{:016X} {}", instruction.ip(), output);
+    // info!("{:016X} {}", instruction.ip(), output);
 }

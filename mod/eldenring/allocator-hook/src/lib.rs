@@ -42,6 +42,6 @@ pub fn entry(_: usize, _: u32) {
         // HOOK.enable().unwrap();
 
         // stepper::hook();
-        allocator::hook();
+        // allocator::hook();
     }
 }
