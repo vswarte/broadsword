@@ -19,11 +19,15 @@ macro_rules! create_allocator_hook {
 
                     let table_entry = AllocationTableEntry {
                         name: None,
-                        // invalidated: false,
-                        layout: alloc::Layout::from_size_align(size, alignment).unwrap(),
+                        size,
+                        alignment,
+                        range: ops::Range {
+                            start: allocation,
+                            end: allocation + size,
+                        }
                     };
 
-                    info!("ADD: {:#x}", allocation);
+                    // info!("ADD: {:#?}", table_entry);
                     {
                         let mut table = ALLOCATION_TABLE.as_mut().unwrap().write().unwrap();
                         table.insert(allocation, table_entry);
