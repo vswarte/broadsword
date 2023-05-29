@@ -10,7 +10,9 @@ members = [
 
 	"mod/crash-logger",
 	"mod/eldenring/allocator-hook",
+
 	"bin/rtti-hierarchy-graph",
+	"bin/allocator-log-splitter",
 	"bin/virtual-destructor-finder",
 ]
 

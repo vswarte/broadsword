@@ -1,5 +1,7 @@
 #![feature(map_entry_replace)]
 #![feature(local_key_cell_methods)]
+extern crate core;
+
 use std::mem;
 
 use detour::static_detour;
@@ -11,9 +13,12 @@ use broadsword::dll;
 use broadsword::logging;
 use broadsword::runtime;
 
+mod debug;
+pub mod event;
 mod stepper;
-mod stepper_hook;
 mod allocator;
+mod allocations;
+mod stepper_hook;
 mod allocator_hook;
 
 static_detour! {
@@ -42,6 +47,6 @@ pub fn entry(_: usize, _: u32) {
         // HOOK.enable().unwrap();
 
         // stepper::hook();
-        // allocator::hook();
+        allocator::hook();
     }
 }

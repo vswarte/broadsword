@@ -6,6 +6,7 @@ use std::collections;
 
 use log::info;
 use windows::Win32::System::Memory::{MEMORY_BASIC_INFORMATION, VirtualQuery};
+use windows::Win32::System::Threading::PROCESS_DYNAMIC_ENFORCED_ADDRESS_RANGE;
 use broadsword_address::{Base, Address};
 use broadsword_rtti::type_descriptor::TypeDescriptor;
 use broadsword_rtti::complete_object_locator::CompleteObjectLocator;
@@ -16,34 +17,42 @@ use crate::pointer;
 /// It does so by resolving the vftable and resolving the pointer directly above it then following
 /// the complete object locator to its type descriptor.
 /// Because RTTI uses IBO (image base offsets) we need to know the base to build proper pointers.
+pub fn get_instance_classname(ptr: Address) -> Option<String> {
+    let vftable_candidate = get_vftable_pointer(ptr);
+    match vftable_candidate {
+        None => None,
+        Some(ptr) => get_classname(ptr),
+    }
+}
+
 pub fn get_classname(ptr: Address) -> Option<String> {
     unsafe { init_cache() };
+
     if !pointer::is_valid_pointer(ptr.as_usize()) {
         return  None;
     }
 
-    let vftable_ptr_candidate = unsafe { *(ptr.as_usize() as *const usize) };
-    // match get_cache_entry(&vftable_ptr_candidate) {
-    //     Some(e) => {
-    //         return if e.is_vftable {
-    //             e.name.clone()
-    //         } else {
-    //             None
-    //         }
-    //     },
-    //     None => {},
-    // }
+    match get_cache_entry(&ptr.as_usize()) {
+        Some(e) => {
+            return if e.is_vftable {
+                e.name.clone()
+            } else {
+                None
+            }
+        },
+        None => {},
+    }
 
     // If we can't correlate the vftable ptr to a base we can't do validation.
-    let module: Base = match crate::module::get_module_pointer_belongs_to(vftable_ptr_candidate) {
+    let module: Base = match crate::module::get_module_pointer_belongs_to(ptr.as_usize()) {
         Some(m) => m.memory_range.start.into(),
         None => {
-            mark_as_non_vftable(vftable_ptr_candidate.into());
+            mark_as_non_vftable(ptr);
             return None;
         }
     };
 
-    let meta_ptr = vftable_ptr_candidate - mem::size_of::<usize>();
+    let meta_ptr = ptr.as_usize() - mem::size_of::<usize>();
     let col_ptr = unsafe { *(meta_ptr as *const usize) };
     if !pointer::is_valid_pointer(col_ptr) {
         mark_as_non_vftable(ptr);
@@ -56,7 +65,7 @@ pub fn get_classname(ptr: Address) -> Option<String> {
     // Resolve type descriptor
     let type_descriptor_ptr = &module + &col.type_descriptor;
     if !pointer::is_valid_pointer(type_descriptor_ptr.as_usize()) {
-        mark_as_non_vftable(vftable_ptr_candidate.into());
+        mark_as_non_vftable(ptr);
         return  None;
     }
 
@@ -69,21 +78,21 @@ pub fn get_classname(ptr: Address) -> Option<String> {
 
     let name = TypeDescriptor::from_slice(type_descriptor_slice).name;
     if name.is_empty() || !name.starts_with(".?") {
-        mark_as_non_vftable(vftable_ptr_candidate.into());
+        mark_as_non_vftable(ptr);
         return None;
     }
 
-    mark_as_vftable(vftable_ptr_candidate.into(), &name);
+    mark_as_vftable(ptr, &name);
 
     Some(name)
 }
 
-pub fn get_vftable_pointer(ptr: usize) -> Option<usize> {
-    let result = unsafe { *(ptr as *const usize) };
+pub fn get_vftable_pointer(ptr: Address) -> Option<Address> {
+    let result = unsafe { *(ptr.as_usize() as *const usize) };
     if !pointer::is_valid_pointer(result) {
         None
     } else {
-        Some(result)
+        Some(result.into())
     }
 }
 
@@ -91,7 +100,6 @@ static mut VFTABLE_CACHE: Option<sync::RwLock<collections::HashMap<usize, Cached
 
 fn get_cache_entry(ptr: &usize) -> Option<CachedRTTILookupResult> {
     unsafe {
-
         let cache = VFTABLE_CACHE.as_ref().unwrap()
             .read()
             .unwrap();

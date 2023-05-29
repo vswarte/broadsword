@@ -15,27 +15,21 @@ macro_rules! create_allocator_hook {
             paste!{ [<$name:upper _ALLOC>] }.initialize(
                 mem::transmute(*alloc_fn_ptr),
                 move |allocator: usize, size: usize, alignment: usize| {
-                    let allocation = paste!{ [<$name:upper _ALLOC>] }.call(allocator, size, alignment);
+                    let ptr = paste!{ [<$name:upper _ALLOC>] }.call(allocator, size, alignment);
 
-                    let table_entry = AllocationTableEntry {
-                        name: None,
-                        size,
-                        alignment,
-                        range: ops::Range {
-                            start: allocation,
-                            end: allocation + size,
-                        }
-                    };
+                    register_allocation(ptr, size);
 
-                    // info!("Allocated {:#x} bytes at {:#x}", size, allocation);
-                    {
-                        let mut table = ALLOCATION_TABLE.as_mut().unwrap().write().unwrap();
-                        table.insert(allocation, table_entry);
-                    }
+                    // TODO: page guard the entire reservation
+                    get_thread_event_channel()
+                        .send(MemoryEvent::Reserve(ReservationEvent {
+                            ptr,
+                            size,
+                        }))
+                        .unwrap();
 
-                    runtime::set_pageguard(allocation.into());
+                    runtime::set_pageguard(ptr.into());
 
-                    allocation
+                    ptr
                 }
             ).unwrap();
             paste!{ [<$name:upper _ALLOC>] }.enable().unwrap();
@@ -48,19 +42,8 @@ macro_rules! create_allocator_hook {
             paste!{ [<$name:upper _DEALLOC>] }.initialize(
                 mem::transmute(*dealloc_fn_ptr),
                 move |allocator: usize, ptr: usize| {
+                    remove_allocation(ptr);
                     paste!{ [<$name:upper _DEALLOC>] }.call(allocator, ptr);
-
-                    let deallocated_entry = {
-                        let mut table = ALLOCATION_TABLE.as_mut().unwrap().write().unwrap();
-                        table.remove(&ptr)
-                    };
-
-                    // info!("Freed memory associated with {:#x}", ptr);
-
-                    // match deallocated_entry {
-                    //     Some(e) => debug!("Removed allocation table entry {:?}", ptr),
-                    //     None => debug!("Could not find an allocation table entry for {:#x}", ptr),
-                    // };
                 }
             ).unwrap();
             paste!{ [<$name:upper _DEALLOC>] }.enable().unwrap();
