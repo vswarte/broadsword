@@ -1,6 +1,5 @@
 use std::ffi;
 
-use log::info;
 use windows::Win32::System::Memory::IsBadReadPtr;
 
 pub fn is_valid_pointer(ptr: usize) -> bool {

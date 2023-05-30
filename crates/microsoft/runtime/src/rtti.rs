@@ -1,12 +1,8 @@
 use std::mem;
-use std::ffi;
 use std::sync;
 use std::slice;
 use std::collections;
 
-use log::info;
-use windows::Win32::System::Memory::{MEMORY_BASIC_INFORMATION, VirtualQuery};
-use windows::Win32::System::Threading::PROCESS_DYNAMIC_ENFORCED_ADDRESS_RANGE;
 use broadsword_address::{Base, Address};
 use broadsword_rtti::type_descriptor::TypeDescriptor;
 use broadsword_rtti::complete_object_locator::CompleteObjectLocator;

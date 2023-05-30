@@ -2,8 +2,6 @@
 #![feature(local_key_cell_methods)]
 extern crate core;
 
-use std::mem;
-
 use detour::static_detour;
 
 use tracy::tracing::TracyLayer;
@@ -11,10 +9,9 @@ use tracing_subscriber::prelude::*;
 
 use broadsword::dll;
 use broadsword::logging;
-use broadsword::runtime;
 
 mod debug;
-pub mod event;
+mod event;
 mod stepper;
 mod allocator;
 mod allocations;
@@ -25,9 +22,8 @@ static_detour! {
   static HOOK: fn(usize, usize, usize) -> usize;
 }
 
-dll::make_entrypoint!(entry);
-
-pub fn entry(_: usize, _: u32) {
+#[dll::entrypoint]
+pub fn entry(_: usize) -> bool {
     logging::init("log/allocator_hook.log");
 
     tracing::subscriber::set_global_default(
@@ -49,4 +45,6 @@ pub fn entry(_: usize, _: u32) {
         // stepper::hook();
         allocator::hook();
     }
+
+    true
 }

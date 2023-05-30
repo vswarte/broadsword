@@ -1,21 +1,21 @@
-#[macro_export]
-macro_rules! make_entrypoint {
-    ($fn: expr) => {
+use syn::ItemFn;
+use quote::quote;
+use proc_macro::TokenStream;
+
+#[proc_macro_attribute]
+pub fn entrypoint(_args: TokenStream, input: TokenStream) -> TokenStream {
+    let input_fn: ItemFn = syn::parse_macro_input!(input as ItemFn);
+    let input_fn_ident = input_fn.sig.ident.clone();
+
+    TokenStream::from(quote! {
+        #input_fn
+
         #[no_mangle]
-        pub extern "stdcall" fn DllMain(dll_base: usize, reason: u32) -> bool {
+        pub extern "stdcall" fn DllMain(base: usize, reason: u32) -> bool {
             match reason {
-                1 => $fn(dll_base, reason),
-                _ => {},
+                1 => { #input_fn_ident(base) }
+                _ => true,
             }
-
-            true
         }
-    }
-}
-
-#[macro_export]
-macro_rules! make_entrypoint_threaded {
-    ($fn: expr) => {
-        entrypoint!(thread::spawn($fn))
-    }
+    })
 }

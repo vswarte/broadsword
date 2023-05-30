@@ -1,9 +1,9 @@
 [workspace]
 members = [
-	"main",
-
+	"exports",
 	"crates/scanner",
 	"crates/address",
+	"crates/memorylog",
     "crates/microsoft/rtti",
 	"crates/microsoft/dll",
 	"crates/microsoft/runtime",
@@ -19,5 +19,6 @@ members = [
 [workspace.dependencies]
 log = "0.4"
 log4rs = "1"
-serde = { version = "1.0", features = ["derive"] }
+bincode = "1.3.3"
+serde = "1.0"
 detour = { git = "https://github.com/veeenu/detour-rs.git", branch = "master" }

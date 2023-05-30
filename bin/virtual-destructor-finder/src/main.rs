@@ -1,13 +1,10 @@
-use std::io;
 use std::env;
 use std::fs::File;
-use std::ops::Range;
-use std::io::{Read, Write};
+use std::io::Read;
 
 use broadsword::rtti;
 use broadsword::address;
 use pelite::pe64::{Pe, PeFile};
-use pelite::pe64::headers::SectionHeader;
 use broadsword::static_analysis::locate_base_class_descriptors;
 
 fn main() {
@@ -40,7 +37,6 @@ fn main() {
     // Get the difference between the virtual and the file range so that we can rebase the IBOs
     // into file_slice offsets.
     let data_offset = data.virtual_range().start - data.file_range().start;
-    let rdata_offset = rdata.virtual_range().start - rdata.file_range().start;
 
     let descriptors = locate_base_class_descriptors(file_slice, rdata, data);
     for descriptor in descriptors.iter() {

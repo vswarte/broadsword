@@ -1,6 +1,5 @@
 use std::mem;
 use std::ffi;
-use log::info;
 
 use broadsword_address::Address;
 use windows::Win32::System::Memory::{MEMORY_BASIC_INFORMATION, PAGE_GUARD, PAGE_PROTECTION_FLAGS, VirtualProtect, VirtualQuery};

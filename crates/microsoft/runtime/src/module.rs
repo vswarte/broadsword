@@ -4,11 +4,11 @@ use std::ops;
 
 use windows::Win32::Foundation::{HMODULE, MAX_PATH};
 use windows::Win32::System::Threading::GetCurrentProcess;
+use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::SystemServices::IMAGE_DOS_HEADER;
 use windows::Win32::System::Diagnostics::Debug::ImageNtHeader;
 use windows::Win32::System::Diagnostics::Debug::IMAGE_NT_HEADERS64;
 use windows::Win32::System::Diagnostics::Debug::IMAGE_SECTION_HEADER;
-use windows::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
 use windows::Win32::System::ProcessStatus::{EnumProcessModules, GetModuleBaseNameA};
 
 pub enum ModuleNameLookupError {

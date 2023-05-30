@@ -1,12 +1,9 @@
 use std::ops;
 
-use pelite::pe64::{Pe, PeFile};
 use pelite::pe64::headers::SectionHeader;
 use broadsword_rtti::symbol::is_decorated_symbol;
 use broadsword_rtti::type_descriptor::TypeDescriptor;
 use broadsword_rtti::base_class_descriptor::BaseClassDescriptor;
-use broadsword_rtti::complete_object_locator::CompleteObjectLocator;
-use broadsword_rtti::class_hierarchy_descriptor::ClassHierarchyDescriptor;
 
 /// Attempts to retrieve all RTTIBaseClassDescriptor instances it can find
 pub fn locate_base_class_descriptors(

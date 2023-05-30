@@ -1,6 +1,6 @@
 use std::ptr;
 
-use log::{trace, error};
+use log::{trace, error, info};
 use windows::Win32::System::Kernel::ExceptionContinueSearch;
 use iced_x86::{Decoder, DecoderOptions, Formatter, NasmFormatter};
 use windows::Win32::System::Diagnostics::Debug::{AddVectoredExceptionHandler, EXCEPTION_POINTERS};
@@ -9,14 +9,17 @@ use broadsword::dll;
 use broadsword::logging;
 use broadsword::runtime;
 
-dll::make_entrypoint!(entry);
-
-pub fn entry(_: usize, _: u32) {
+#[dll::entrypoint]
+pub fn entry(_: usize) -> bool {
     logging::init("log/crash_logger.log");
+
+    info!("O̴̙̰̲̳̘̊̅͂̍ṕ̴̝̣͕͚̥͑͘ͅe̵̝̓̈̏̚͝ͅn̴͖͈̊̆̄̈́̽͛̀̑̃͠ ̶̳͇̱̳̞̖̇̿̉͑̽͠t̴̘̟̠̹͚̩̭̦̹̐́̃̍̇͂͒̇̕̕h̶̡̨̬͍̼̙̀̆̅͑͒ͅĕ̶̡͚͓̫̜͈͛̈͑̅͠ ̵̞̺̰̮̫͙͇̞̪̊d̸̘̬͕̲̯̙͔͇̘̖̊͑́́̽̓͊̀̚͝ȏ̶̧̮̬̤̥̈̍ọ̵̞̈́̂̂̅̊̽́̽r̵̤̭̮̅̏̆̋͒̉̔̾̕͝ͅ ̶͉̏̃͐̿͐̕͝ō̵̗̜͍͎͖͎͓͉͜f̸̲̍̌ ̵̨̨̙̮͘G̶̛̞̖̠̹̖̼̠̹͎̅͑̍̓̃́͑̊ǫ̸̧͖̱͔̹͍̔̚͜ͅď̸̮̜͉");
 
     unsafe {
         AddVectoredExceptionHandler(0x0, Some(exception_filter));
     }
+
+    true
 }
 
 unsafe extern "system" fn exception_filter(exception_info: *mut EXCEPTION_POINTERS) -> i32 {

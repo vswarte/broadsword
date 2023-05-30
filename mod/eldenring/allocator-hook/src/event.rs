@@ -3,13 +3,7 @@ use std::thread;
 use std::sync::mpsc;
 use std::cell::RefCell;
 use std::io::Write;
-use std::ops::Bound::{Excluded, Included};
-use iced_x86::Instruction;
-use log::info;
-use broadsword::runtime;
-use serde::{Serialize, Deserialize};
-
-use crate::allocations::page_contains_allocation;
+use broadsword_memorylog::MemoryEvent;
 
 pub fn init_event_thread() {
     if unsafe { EVENT_CHANNEL_TX.is_some() } {
@@ -28,11 +22,9 @@ pub fn init_event_thread() {
         for event in rx {
             let encoded: Vec<u8> = bincode::serialize(&event).unwrap();
             let size = encoded.len();
-            // info!("Serialized event size: {}", size);
 
             f.write(&size.to_le_bytes()).unwrap();
             f.write(encoded.as_slice()).unwrap();
-            // handle_event(event);
         }
     });
 }
@@ -41,29 +33,6 @@ static mut EVENT_CHANNEL_TX: Option<mpsc::Sender<MemoryEvent>> = None;
 
 thread_local! {
     static THREAD_EVENT_CHANNEL_TX: RefCell<Option<mpsc::Sender<MemoryEvent>>> = RefCell::default();
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub enum MemoryEvent {
-    Reserve(ReservationEvent),
-    Access(AccessEvent),
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct ReservationEvent {
-    pub ptr: usize,
-    pub size: usize,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct AccessEvent {
-    pub instruction_address: u64,
-    // pub instruction: Vec<u8>,
-    pub access_address: usize,
-    pub data_before: Vec<u8>,
-    pub data_after: Vec<u8>,
-    pub is_write: bool,
-    // pub context: CONTEXT,
 }
 
 pub fn init_for_thread() {

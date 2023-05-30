@@ -4,18 +4,19 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-broadsword_address = { path="../../../crates/address" }
-broadsword = { path="../../../main" }
 detour = { workspace = true }
 log = { workspace = true }
 log4rs = { workspace = true }
+serde = { workspace = true }
+bincode = { workspace = true }
 paste = "1"
 tracing = "0.1"
 repeated = "0.1.2"
 tracing-subscriber = "0.3"
 iced-x86 = "1.18.0"
-serde = "1.0.160"
-bincode = "1.3.3"
+broadsword = { path = "../../../exports" }
+broadsword_memorylog = { path = "../../../crates/memorylog" }
+
 
 [dependencies.tracy]
 package = "tracy_full"

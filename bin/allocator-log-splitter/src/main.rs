@@ -1,10 +1,11 @@
+use bincode;
 use std::fs;
 use std::env;
 use std::ops;
 use std::io::{Read, Write};
 use indicatif::ProgressBar;
-use bincode;
 use serde::{Serialize, Deserialize};
+use broadsword_memorylog::{MemoryEvent, Session};
 
 fn main() {
     let args = env::args().collect::<Vec<String>>();
@@ -30,11 +31,12 @@ fn main() {
 
         match decoded {
             MemoryEvent::Reserve(e) => {
+                let padded_size = ((e.size / e.alignment) + 1) * e.alignment;
                 sessions.push(Session {
-                    index: sessions.len() + 1,
+                    index: sessions.len() as u64 + 1,
                     range: ops::Range {
                         start: e.ptr,
-                        end: e.ptr + e.size,
+                        end: e.ptr + padded_size,
                     },
                     events: vec![],
                 });
@@ -56,7 +58,7 @@ fn main() {
     bar.finish();
 
     // Write the accumulated output
-    fs::create_dir("./output").unwrap();
+    let _ = fs::create_dir("./output");
     let bar = ProgressBar::new(sessions.len() as u64);
     for session in sessions.iter() {
         let bytes = bincode::serialize(&session).unwrap();
@@ -65,34 +67,4 @@ fn main() {
         bar.inc(1);
     }
     bar.finish();
-}
-
-#[derive(Debug, Serialize)]
-struct Session {
-    pub index: usize,
-    pub range: ops::Range<usize>,
-    pub events: Vec<AccessEvent>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub enum MemoryEvent {
-    Reserve(ReservationEvent),
-    Access(AccessEvent),
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct ReservationEvent {
-    pub ptr: usize,
-    pub size: usize,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct AccessEvent {
-    pub instruction_address: u64,
-    // pub instruction: Instruction,
-    pub access_address: usize,
-    pub data_before: Vec<u8>,
-    pub data_after: Vec<u8>,
-    pub is_write: bool,
-    // pub context: CONTEXT,
 }

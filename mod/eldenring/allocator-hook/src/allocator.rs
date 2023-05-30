@@ -1,17 +1,7 @@
-use std::{ffi, fmt, ops};
-use std::ptr;
 use std::mem;
-use std::sync;
 use std::slice;
-use std::alloc;
-use std::thread;
-use std::sync::mpsc;
-use std::collections;
-use std::collections::hash_map::Entry;
-use std::ops::Bound::{Included, Excluded};
-use std::cell::{Cell, RefCell, UnsafeCell};
 use std::fmt::write;
-use std::slice::SliceIndex;
+use std::cell::{Cell, RefCell, UnsafeCell};
 
 use log::*;
 use paste::paste;
@@ -22,16 +12,17 @@ use broadsword::address::Address;
 use tracy::alloc::GlobalAllocator;
 use broadsword::runtime::{get_module_pointer_belongs_to, set_pageguard};
 use windows::Win32::Foundation::{EXCEPTION_GUARD_PAGE, EXCEPTION_SINGLE_STEP, HANDLE};
-use windows::Win32::System::Diagnostics::Debug::{AddVectoredExceptionHandler, CONTEXT, EXCEPTION_POINTERS, EXCEPTION_RECORD, FlushInstructionCache};
-use windows::Win32::System::Memory::{MEM_COMMIT, MEM_DECOMMIT, MEM_FREE, MEM_RELEASE, MEM_RESERVE, PAGE_EXECUTE_READWRITE, VIRTUAL_FREE_TYPE, VirtualAlloc, VirtualFree, VirtualProtect};
+use windows::Win32::System::Diagnostics::Debug::{AddVectoredExceptionHandler, CONTEXT, EXCEPTION_POINTERS, EXCEPTION_RECORD};
 
-use iced_x86::{Decoder, DecoderOptions, Instruction, Mnemonic, OpKind, Register, Formatter, NasmFormatter};
+use iced_x86::{Decoder, DecoderOptions, Instruction};
 
-use crate::{create_allocator_hook, entry};
-use crate::event::{AccessEvent, init_event_thread, init_for_thread, get_thread_event_channel, MemoryEvent, ReservationEvent};
+use crate::create_allocator_hook;
+use broadsword_memorylog::{MemoryEvent, ReservationEvent, AccessEvent};
+use crate::event::{init_event_thread, init_for_thread, get_thread_event_channel};
 use crate::allocations::{init_allocation_table, register_allocation, remove_allocation};
 
 create_allocator_hook!(heap, 0x142b821b0);
+create_allocator_hook!(network, 0x142b84cb0);
 
 pub(crate) unsafe fn hook() {
     init_allocation_table();
@@ -41,14 +32,15 @@ pub(crate) unsafe fn hook() {
         AddVectoredExceptionHandler(0x1, Some(exception_filter));
     }
 
-    heap();
+    // heap();
+    network();
 }
 
 #[allow(overflowing_literals)]
 unsafe extern "system" fn exception_filter(exception_info: *mut EXCEPTION_POINTERS) -> i32 {
     init_for_thread();
 
-    let mut exception = *(*exception_info).ExceptionRecord;
+    let exception = *(*exception_info).ExceptionRecord;
     match exception.ExceptionCode.0 {
         // STATUS_GUARD_PAGE_VIOLATION
         0x80000001 => {
@@ -78,9 +70,10 @@ unsafe fn handle_pageguard_breakpoint(exception_info: *mut EXCEPTION_POINTERS) {
     let access_type = (*(*exception_info).ExceptionRecord).ExceptionInformation[0].clone();
     let access_address = (*(*exception_info).ExceptionRecord).ExceptionInformation[1].clone();
 
-    set_data_sample_before(sample_memory(access_address));
+    let access_size = instruction.memory_size().size();
+    set_access_size(access_size);
 
-    set_reguard_address(access_address);
+    set_reguard_address(access_address as u64);
     set_is_write(access_type == 0x1);
 }
 
@@ -109,48 +102,34 @@ unsafe fn handle_step_breakpoint(exception_info: *mut EXCEPTION_POINTERS) {
     }
 
     if get_is_write() {
-        let after_sample = sample_memory(get_reguard_address());
         get_thread_event_channel()
             .send(MemoryEvent::Access(AccessEvent {
-                // instruction: sample_instruction(get_instruction_address()),
                 instruction_address: get_instruction_address(),
+                instruction_bytes: sample_memory(get_instruction_address() as u64, 15),
                 access_address: get_reguard_address(),
-                data_before: get_data_sample_before(),
-                data_after: after_sample,
+                data_after: sample_memory(get_reguard_address(), get_access_size()),
                 is_write: get_is_write(),
             }))
             .unwrap();
     }
 
-    set_pageguard(get_reguard_address().into());
+    set_pageguard((get_reguard_address() as usize).into());
 }
 
-unsafe fn sample_memory(address: usize) -> Vec<u8> {
+unsafe fn sample_memory(address: u64, size: usize) -> Vec<u8> {
     slice::from_raw_parts(
         address as *const u8,
-        0x8
+        size
     ).to_vec()
 }
 
 
 thread_local! {
-    static DATA_SAMPLE_BEFORE: RefCell<Vec<u8>> = RefCell::default();
+    static ACCESS_SIZE: RefCell<usize> = RefCell::default();
     static IS_WRITE: RefCell<bool> = RefCell::default();
     static INSTRUCTION_ADDRESS: RefCell<u64> = RefCell::default();
     static RELEASE_ADDRESS: RefCell<u64> = RefCell::default();
-    static REGUARD_ADDRESS: RefCell<usize> = RefCell::default();
-}
-
-fn set_data_sample_before(v: Vec<u8>) {
-    DATA_SAMPLE_BEFORE.with_borrow_mut(|t| {
-        *t = v;
-    });
-}
-
-fn get_data_sample_before() -> Vec<u8> {
-    DATA_SAMPLE_BEFORE.with_borrow(|t| {
-        t.clone()
-    })
+    static REGUARD_ADDRESS: RefCell<u64> = RefCell::default();
 }
 
 fn set_is_write(v: bool) {
@@ -161,6 +140,18 @@ fn set_is_write(v: bool) {
 
 fn get_is_write() -> bool {
     IS_WRITE.with_borrow(|t| {
+        t.clone()
+    })
+}
+
+fn set_access_size(size: usize) {
+    ACCESS_SIZE.with_borrow_mut(|t| {
+        *t = size;
+    });
+}
+
+fn get_access_size() -> usize {
+    ACCESS_SIZE.with_borrow(|t| {
         t.clone()
     })
 }
@@ -189,13 +180,13 @@ fn get_release_address() -> u64 {
     })
 }
 
-fn set_reguard_address(base: usize) {
+fn set_reguard_address(base: u64) {
     REGUARD_ADDRESS.with_borrow_mut(|t| {
         *t = base;
     });
 }
 
-fn get_reguard_address() -> usize {
+fn get_reguard_address() -> u64 {
     REGUARD_ADDRESS.with_borrow(|t| {
         t.clone()
     })
