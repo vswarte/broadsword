@@ -1,0 +1,13 @@
+[package]
+name = "eldenring_matchmaking_test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+detour = { workspace = true }
+log = { workspace = true }
+log4rs = { workspace = true }
+broadsword = { path = "../../../exports" }
+
+[lib]
+crate-type = ["cdylib"]

@@ -11,7 +11,7 @@ pub fn entrypoint(_args: TokenStream, input: TokenStream) -> TokenStream {
         #input_fn
 
         #[no_mangle]
-        pub extern "stdcall" fn DllMain(base: usize, reason: u32) -> bool {
+        pub unsafe extern "stdcall" fn DllMain(base: usize, reason: u32) -> bool {
             match reason {
                 1 => { #input_fn_ident(base) }
                 _ => true,

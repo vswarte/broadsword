@@ -40,6 +40,10 @@ impl Offset {
     pub fn as_usize(&self) -> usize {
         self.value
     }
+
+    pub fn as_u64(&self) -> u64 {
+        self.value as u64
+    }
 }
 
 impl ops::Add<&Offset> for &Offset {

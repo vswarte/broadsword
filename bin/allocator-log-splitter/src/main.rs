@@ -31,23 +31,23 @@ fn main() {
 
         match decoded {
             MemoryEvent::Reserve(e) => {
-                let padded_size = ((e.size / e.alignment) + 1) * e.alignment;
+                // let padded_size = ((e.size / e.alignment) + 1) * e.alignment;
+                let alloc_end = e.ptr + e.size;
+
                 sessions.push(Session {
                     index: sessions.len() as u64 + 1,
                     range: ops::Range {
                         start: e.ptr,
-                        end: e.ptr + padded_size,
+                        end: alloc_end,
                     },
                     events: vec![],
                 });
             },
             MemoryEvent::Access(e) => {
-                match sessions.iter_mut().position(|s| s.range.contains(&e.access_address)) {
-                    Some(s) => {
-                        sessions[s].events.push(e)
-                    },
-                    None => {
-                        // println!("Warning: Could not find session");
+                for session in sessions.iter_mut().rev() {
+                    if session.range.contains(&e.access_address) {
+                        session.events.push(e);
+                        break;
                     }
                 }
             },
@@ -62,7 +62,7 @@ fn main() {
     let bar = ProgressBar::new(sessions.len() as u64);
     for session in sessions.iter() {
         let bytes = bincode::serialize(&session).unwrap();
-        let mut file = fs::File::create(format!("./output/{}.accum", session.index)).unwrap();
+        let mut file = fs::File::create(format!("./output/{:#x}-{}.accum", session.range.start, session.index)).unwrap();
         file.write_all(&bytes).unwrap();
         bar.inc(1);
     }
