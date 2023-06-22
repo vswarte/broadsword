@@ -1,10 +1,14 @@
 use std::ffi;
 use std::mem;
 use std::ops;
+use std::ffi::{CStr, CString};
+use windows::core::{HSTRING, PCSTR, PCWSTR};
+
+/// TODO: clean up str conversion approach for entire file and get of the string_to_* fns
 
 use windows::Win32::Foundation::{HMODULE, MAX_PATH};
 use windows::Win32::System::Threading::GetCurrentProcess;
-use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
 use windows::Win32::System::SystemServices::IMAGE_DOS_HEADER;
 use windows::Win32::System::Diagnostics::Debug::ImageNtHeader;
 use windows::Win32::System::Diagnostics::Debug::IMAGE_NT_HEADERS64;
@@ -97,6 +101,19 @@ pub fn get_module_handle(module: String) -> Result<usize, SymbolLookupError> {
         GetModuleHandleW(crate::string::string_to_pcwstr(module))
             .map_err(|_| SymbolLookupError::ModuleNotFound)
             .map(|x| x.0 as usize)
+    }
+}
+
+pub fn get_module_symbol(module: &str, symbol: &str) -> Result<usize, SymbolLookupError> {
+    unsafe {
+        let h_module = HSTRING::from(module);
+        let module_handle = GetModuleHandleW(PCWSTR::from_raw(h_module.as_ptr()))
+            .map_err(|_| SymbolLookupError::ModuleNotFound)?;
+
+        let symbol = CString::new(symbol).unwrap();
+        GetProcAddress(module_handle, PCSTR::from_raw(symbol.as_ptr() as *const u8))
+            .ok_or(SymbolLookupError::SymbolNotFound)
+            .map(|x| x as usize)
     }
 }
 
