@@ -1,8 +1,0 @@
-[package]
-name = "broadsword_memorylog"
-version = "0.0.1"
-edition = "2021"
-
-[dependencies]
-serde = { workspace = true }
-bincode = { workspace = true }
