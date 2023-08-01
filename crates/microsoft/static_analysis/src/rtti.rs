@@ -1,6 +1,8 @@
 use std::ops;
 
+use std::collections::HashMap;
 use pelite::pe64::headers::SectionHeader;
+use broadsword_address::Offset;
 use broadsword_rtti::symbol::is_decorated_symbol;
 use broadsword_rtti::type_descriptor::TypeDescriptor;
 use broadsword_rtti::base_class_descriptor::BaseClassDescriptor;
@@ -10,7 +12,7 @@ pub fn locate_base_class_descriptors(
     buffer: &[u8],
     rdata: &SectionHeader,
     data: &SectionHeader,
-) -> Vec<(usize, BaseClassDescriptor)>  {
+) -> HashMap<Offset, BaseClassDescriptor>  {
     let rdata_file_range = rdata.file_range();
     let rdata_file_range_usize = ops::Range {
         start: rdata_file_range.start as usize,
@@ -50,7 +52,7 @@ pub fn locate_base_class_descriptors(
                 return None;
             }
 
-            Some((p, candidate))
+            Some((Offset::from(p), candidate))
         })
         .collect()
 }

@@ -8,13 +8,13 @@ members = [
 	"crates/microsoft/dll",
 	"crates/microsoft/runtime",
 
-	"mod/crash-logger",
-	"mod/eldenring/allocator-hook",
-	"mod/eldenring/matchmaking-test",
+	#"mod/crash-logger",
+	#"mod/eldenring/allocator-hook",
+	#"mod/eldenring/matchmaking-test",
 
-	"bin/offline-aob",
-	"bin/rtti-hierarchy-graph",
-	"bin/allocator-log-splitter",
+	#"bin/offline-aob",
+	#"bin/rtti-hierarchy-graph",
+	#"bin/allocator-log-splitter",
 	"bin/virtual-destructor-finder",
 ]
 

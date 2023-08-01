@@ -7,6 +7,7 @@ use std::io::{Read, Write};
 use broadsword::rtti;
 use pelite::pe64::{Pe, PeFile};
 use pelite::pe64::headers::SectionHeader;
+use broadsword::static_analysis::locate_base_class_descriptors;
 
 mod graph;
 mod symbol;
@@ -49,7 +50,7 @@ fn main() {
     let rdata_offset = rdata.virtual_range().start - rdata.file_range().start;
 
     let descriptors = locate_base_class_descriptors(file_slice, rdata, data);
-    for descriptor in descriptors.iter() {
+    for (offset, descriptor) in descriptors.iter() {
         let type_descriptor_offset = (descriptor.type_descriptor - data_offset) as usize;
         let type_descriptor = rtti::TypeDescriptor::from_slice(&file_slice[type_descriptor_offset..]);
 
@@ -90,54 +91,4 @@ fn main() {
 
     let dotviz = graph::build_dotviz(root, graph_edges);
     io::stdout().write_all(dotviz.as_bytes()).unwrap();
-}
-
-/// Attempts to retrieve all RTTIBaseClassDescriptor instances it can find
-fn locate_base_class_descriptors(
-    buffer: &[u8],
-    rdata: &SectionHeader,
-    data: &SectionHeader,
-) -> Vec<rtti::BaseClassDescriptor>  {
-    let rdata_file_range = rdata.file_range();
-    let rdata_file_range_usize = Range {
-        start: rdata_file_range.start as usize,
-        end: rdata_file_range.end as usize,
-    };
-
-    let rdata_virtual_range = rdata.virtual_range();
-    let data_file_range = data.file_range();
-    let data_virtual_range = data.virtual_range();
-
-    rdata_file_range_usize.step_by(8)
-        .filter_map(|p| {
-            let candidate = rtti::BaseClassDescriptor::from_slice(&buffer[p..]);
-
-            if candidate.contained_base_count > 0x20 {
-                return None;
-            }
-
-            // TypeDescriptor should be somewhere in .data
-            if !data_virtual_range.contains(&candidate.type_descriptor) {
-                return None;
-            }
-
-            // Class hierarchy descriptor should be somewhere in .rdata
-            if !rdata_virtual_range.contains(&candidate.class_hierarchy_descriptor) {
-                return None;
-            }
-
-            // Get the difference between the virtual and the file range so that we can rebase the IBOs
-            // into byte offsets.
-            let data_offset = data_virtual_range.start - data_file_range.start;
-            let type_descriptor_offset = candidate.type_descriptor - data_offset;
-            let type_descriptor = rtti::TypeDescriptor::from_slice(&buffer[type_descriptor_offset as usize..]);
-
-            // TypeDescriptor must contain something that looks like a decorated symbol name
-            if symbol::is_decorated_symbol(type_descriptor.name.as_str()) {
-                return None;
-            }
-
-            Some(candidate)
-        })
-        .collect::<Vec<rtti::BaseClassDescriptor>>()
 }

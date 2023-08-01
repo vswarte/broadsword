@@ -27,7 +27,7 @@ impl fmt::Debug for Base {
     }
 }
 
-#[derive(Eq, PartialEq, Clone, Copy)]
+#[derive(Eq, PartialEq, Clone, Copy, Hash)]
 pub struct Offset {
     pub value: usize,
 }
