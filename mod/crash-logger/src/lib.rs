@@ -1,6 +1,6 @@
 use std::ptr;
 
-use log::{trace, error, info};
+use log::{trace, error};
 use windows::Win32::System::Kernel::ExceptionContinueSearch;
 use iced_x86::{Decoder, DecoderOptions, Formatter, NasmFormatter};
 use windows::Win32::System::Diagnostics::Debug::{AddVectoredExceptionHandler, EXCEPTION_POINTERS};
@@ -55,7 +55,7 @@ pub unsafe fn read_instructions_to_end_of_function(
         if current_byte == &0xc3 || current_byte == &0xcc {
             trace!("Found end of function after {} bytes", offset);
             // Include the RET or INT3
-            offset = offset + 1;
+            offset += 1;
             break;
         }
 
@@ -64,7 +64,7 @@ pub unsafe fn read_instructions_to_end_of_function(
             break;
         }
 
-        offset = offset + 1;
+        offset += 1;
     }
 
     let mut instruction_buffer = vec![];
@@ -78,7 +78,7 @@ pub unsafe fn read_instructions_to_end_of_function(
         );
         instruction_buffer.set_len(length);
     }
-    return instruction_buffer;
+    instruction_buffer
 }
 
 pub fn log_instruction_buffer(instructions: Vec<u8>, base_address: usize) {

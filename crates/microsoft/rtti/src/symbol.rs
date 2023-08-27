@@ -25,9 +25,7 @@ pub fn undecorate_symbol(input: &str) -> Option<String> {
     // Find the destructor def and remove it
     let re = Regex::new("::~(.*)$").unwrap();
     let mat = re.find(cleaned.as_str());
-    if mat.is_none() {
-        return None;
-    }
+    mat?;
 
     let mat = mat.unwrap();
     Some(cleaned[..mat.start()].to_string())

@@ -28,7 +28,7 @@ pub fn set_pageguard(address: Address) -> bool {
         );
     }
 
-    return true;
+    true
 }
 
 pub fn remove_pageguard(address: Address) -> bool {
@@ -55,5 +55,5 @@ pub fn remove_pageguard(address: Address) -> bool {
         );
     }
 
-    return true;
+    true
 }

@@ -18,7 +18,7 @@ pub(crate) fn split_scannable(
             scannable.len()
         );
 
-        results.push((offset.clone(), &scannable[start..end]));
+        results.push((offset, &scannable[start..end]));
         offset.move_by(bytes_per_chunk);
     }
 

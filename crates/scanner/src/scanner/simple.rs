@@ -56,7 +56,7 @@ mod tests {
     fn simple_scanner_behaves_with_empty_slice() {
         let pattern = Pattern::from_byte_slice(&[0xAA, 0xAA, 0xAA, 0xAA, 0xAA]);
         let slice = Box::leak(Box::new([]));
-        let result = SimpleScanner::default().scan(slice, &pattern);
+        let result = SimpleScanner.scan(slice, &pattern);
 
         assert_eq!(result, None);
     }
@@ -65,7 +65,7 @@ mod tests {
     fn simple_scanner_behaves_with_too_long_of_a_pattern() {
         let pattern = Pattern::from_byte_slice(&[0xAA, 0xAA, 0xAA, 0xAA, 0xAA]);
         let slice = Box::leak(Box::new([0x00, 0x00, 0x00, 0x00]));
-        let result = SimpleScanner::default().scan(slice, &pattern);
+        let result = SimpleScanner.scan(slice, &pattern);
 
         assert_eq!(result, None);
     }
@@ -74,7 +74,7 @@ mod tests {
     fn simple_scanner_finds_the_pattern_1() {
         let pattern = Pattern::from_byte_slice(&[0x75, 0x84, 0x4A, 0xEF, 0x23, 0x24, 0xCA, 0x35]);
         let randomness = include_bytes!("../../test/random.bin");
-        let result = SimpleScanner::default().scan(randomness, &pattern).unwrap();
+        let result = SimpleScanner.scan(randomness, &pattern).unwrap();
 
         assert_eq!(result.location, Offset::from(1309924));
         assert_eq!(result.captures.len(), 0);
@@ -84,7 +84,7 @@ mod tests {
     fn simple_scanner_finds_the_pattern_2() {
         let pattern = Pattern::from_pattern_str("B7 [?? CF D8 ??] 0A ?? 27").unwrap();
         let randomness = include_bytes!("../../test/random.bin");
-        let result = SimpleScanner::default().scan(randomness, &pattern).unwrap();
+        let result = SimpleScanner.scan(randomness, &pattern).unwrap();
 
         assert_eq!(result.location, Offset::from(867776));
         assert_eq!(result.captures.len(), 1);
@@ -97,7 +97,7 @@ mod tests {
     fn simple_scanner_doesnt_find_the_pattern() {
         let pattern = Pattern::from_byte_slice(&[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]);
         let randomness = include_bytes!("../../test/random.bin");
-        let result = SimpleScanner::default().scan(randomness, &pattern);
+        let result = SimpleScanner.scan(randomness, &pattern);
 
         assert_eq!(result, None);
     }

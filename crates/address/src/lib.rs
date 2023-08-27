@@ -72,9 +72,9 @@ impl From<usize> for Offset {
     }
 }
 
-impl Into<usize> for Offset {
-    fn into(self) -> usize {
-        self.value
+impl From<Offset> for usize {
+    fn from(val: Offset) -> Self {
+        val.value
     }
 }
 

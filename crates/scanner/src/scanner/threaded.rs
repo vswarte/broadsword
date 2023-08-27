@@ -26,7 +26,7 @@ impl Scanner for ThreadedScanner {
             let pattern = pattern.clone();
 
             let handle = thread::spawn(move || {
-                SimpleScanner::default().scan(chunk, &pattern)
+                SimpleScanner.scan(chunk, &pattern)
             });
 
             thread_handles.push((offset, handle));

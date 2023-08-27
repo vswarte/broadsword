@@ -100,10 +100,7 @@ fn get_cache_entry(ptr: &usize) -> Option<CachedRTTILookupResult> {
             .read()
             .unwrap();
 
-        match cache.get(ptr) {
-            Some(e) => Some(e.clone()),
-            None => None,
-        }
+        cache.get(ptr).cloned()
     }
 }
 
@@ -126,7 +123,7 @@ fn add_cache_entry(ptr: &usize, is_vftable: bool, name: Option<String>) {
             .write()
             .unwrap();
 
-        cache.insert(ptr.clone(), entry);
+        cache.insert(*ptr, entry);
     }
 }
 

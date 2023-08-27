@@ -1,7 +1,7 @@
 use std::ffi;
 use std::mem;
 use std::ops;
-use std::ffi::{CStr, CString};
+use std::ffi::{CString};
 use windows::core::{HSTRING, PCSTR, PCWSTR};
 
 /// TODO: clean up str conversion approach for entire file and get of the string_to_* fns
@@ -22,7 +22,7 @@ pub enum ModuleNameLookupError {
 
 /// Enumerates all the modules in the current process
 pub fn get_modules() -> Vec<Module> {
-    let mut bytes_used = 0 as u32;
+    let mut bytes_used = 0_u32;
     let mut modules = [HMODULE::default(); 1024];
 
     let res = unsafe {
@@ -34,7 +34,7 @@ pub fn get_modules() -> Vec<Module> {
         )
     };
 
-    if res.as_bool() == false {
+    if !res.as_bool() {
         return vec![];
     }
 
@@ -43,7 +43,7 @@ pub fn get_modules() -> Vec<Module> {
         let module_base = modules[i as usize];
         let module_name_result = get_module_name(module_base);
 
-        if let Some(module_name) = module_name_result.ok() {
+        if let Ok(module_name) = module_name_result {
             result.push(Module {
                 name: module_name.to_string(),
                 memory_range: get_module_range_by_base(module_base.0 as usize).unwrap(),
@@ -65,7 +65,7 @@ pub fn get_module_pointer_belongs_to(pointer: usize) -> Option<Module> {
 /// Gets a module name from the current process by its module base.
 fn get_module_name(module: HMODULE) -> Result<String, ModuleNameLookupError> {
     let module_name_length;
-    let mut module_name = [0 as u8; MAX_PATH as usize];
+    let mut module_name = [0_u8; MAX_PATH as usize];
 
     unsafe {
         module_name_length = GetModuleBaseNameA(GetCurrentProcess(), module, &mut module_name);
@@ -83,10 +83,10 @@ fn get_module_name(module: HMODULE) -> Result<String, ModuleNameLookupError> {
 /// Gives you the range that a module spans by the modules base.
 fn get_module_range_by_base(base: usize) -> Option<ops::Range<usize>> {
     let image_header = unsafe { ImageNtHeader(base as *const ffi::c_void) };
-    let image_size = unsafe { (*image_header).OptionalHeader.SizeOfImage as u32 };
+    let image_size = unsafe { (*image_header).OptionalHeader.SizeOfImage };
     let end = base + image_size as usize;
 
-    return Some(ops::Range { start: base, end });
+    Some(ops::Range { start: base, end })
 }
 
 #[derive(Debug)]
@@ -125,7 +125,7 @@ pub fn get_module_section_range(module: String, specified_section: String) -> Op
     let image_nt_header = unsafe { ImageNtHeader(module_base as *const ffi::c_void) };
     let num_sections = unsafe { (*image_nt_header).FileHeader.NumberOfSections as u32 };
     let number_of_rva_and_sizes =
-        unsafe { (*image_nt_header).OptionalHeader.NumberOfRvaAndSizes as u32 };
+        unsafe { (*image_nt_header).OptionalHeader.NumberOfRvaAndSizes };
 
     // The sections should be right after the Image NT header.
     // That means we'll have to parse the DOS header to figure out how when the optional header ends.
@@ -149,19 +149,19 @@ pub fn get_module_section_range(module: String, specified_section: String) -> Op
                 .expect("Could not get name from section");
 
             if section_name == specified_section {
-                let section_size = (*section_header).SizeOfRawData as u32;
-                let section_va = (*section_header).VirtualAddress as u32;
+                let section_size = (*section_header).SizeOfRawData;
+                let section_va = (*section_header).VirtualAddress;
 
                 let start = module_base + section_va as usize;
                 let end = module_base + section_va as usize + section_size as usize;
                 return Some(ops::Range { start, end });
             }
 
-            current_section_header = current_section_header + section_header_size;
+            current_section_header += section_header_size;
         }
     }
 
-    return None;
+    None
 }
 
 #[derive(Debug)]
