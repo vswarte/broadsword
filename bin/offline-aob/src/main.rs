@@ -86,7 +86,7 @@ fn main() {
         for (key, result) in results.into_iter() {
             match result {
                 Some(ibo) => {
-                    let line = format!("#define IBO_{} {:#x}\n", key, ibo);
+                    let line = format!("pub const IBO_{}: usize = {:#x};\n", key, ibo);
                     output_file.write_all(line.as_bytes())
                         .expect("Could add define line to output header file");
                 },
@@ -131,8 +131,10 @@ fn get_result_for_method(
                 OpKind::NearBranch64 => {
                     return instruction.near_branch_target();
                 },
-                _ =>  todo!("Could not acquire memory target from instruction {:?}", instruction)
+                _ =>  {}
             }
+
+            todo!("Could not acquire memory target from instruction {:?}", instruction)
         },
     }
 }

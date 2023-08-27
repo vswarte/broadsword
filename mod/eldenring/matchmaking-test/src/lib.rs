@@ -13,8 +13,6 @@ use broadsword::logging;
 static_detour! {
   static SECRETBOX_DECRYPT: fn(usize, usize, usize, usize, usize, usize) -> usize;
   static SECRETBOX_ENCRYPT: fn(usize, usize, usize, usize, usize, usize) -> usize;
-  static BOX_DECRYPT: fn(usize, usize, usize, usize, usize, usize) -> usize;
-  static BOX_ENCRYPT: fn(usize, usize, usize, usize, usize, usize) -> usize;
 }
 
 #[dll::entrypoint]
@@ -32,6 +30,7 @@ pub unsafe fn entry(_: usize) -> bool {
             let buffer = slice::from_raw_parts(output as *const u8, size);
             dump_buffer("recv_decrypted", buffer);
 
+            // 0x0
             res
         }
     ).unwrap();
@@ -46,7 +45,6 @@ pub unsafe fn entry(_: usize) -> bool {
             dump_buffer("send_decrypted", buffer);
 
             let res = SECRETBOX_ENCRYPT.call(output, mac, message, size, nonce, key);
-
             res
         }
     ).unwrap();

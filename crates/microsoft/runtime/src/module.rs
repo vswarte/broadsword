@@ -131,6 +131,7 @@ pub fn get_module_section_range(module: String, specified_section: String) -> Op
     // That means we'll have to parse the DOS header to figure out how when the optional header ends.
     let dos_header = module_base as *const IMAGE_DOS_HEADER;
     let nt_header_base = module_base + unsafe { (*dos_header).e_lfanew as usize };
+
     // The IMAGE_NT_HEADERS64 structure assumes 16 data directory entries. This is not a given so we subtract the difference.
     let section_base = nt_header_base
         + mem::size_of::<IMAGE_NT_HEADERS64>()
@@ -143,15 +144,8 @@ pub fn get_module_section_range(module: String, specified_section: String) -> Op
         for _ in 0..num_sections {
             let section_header = current_section_header as *const IMAGE_SECTION_HEADER;
 
-            // TODO: use PCSTR type and use M$ impl
-            let section_name = String::from_utf8(
-                // Strip trailing 0x0's
-                (*section_header)
-                    .Name
-                    .into_iter()
-                    .filter(|&x| x != 0x0)
-                    .collect::<Vec<u8>>(),
-            )
+            let section_name = PCSTR::from_raw((*section_header).Name.as_ptr())
+                .to_string()
                 .expect("Could not get name from section");
 
             if section_name == specified_section {
