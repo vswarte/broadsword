@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 log = { workspace = "true" }
 log4rs = { workspace = "true" }
-iced-x86 = "1.18.0"
+iced-x86 = "1.20.0"
 broadsword = { path = "../../exports" }
 
 [dependencies.windows]

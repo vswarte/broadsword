@@ -10,4 +10,3 @@ broadsword_address = { path = "../crates/address" }
 broadsword_logging = { path = "../crates/logging" }
 broadsword_scanner = { path = "../crates/scanner" }
 broadsword_microsoft_runtime = { path = "../crates/microsoft/runtime" }
-broadsword_microsoft_static_analysis = { path = "../crates/microsoft/static_analysis" }

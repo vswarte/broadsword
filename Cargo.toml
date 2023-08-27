@@ -8,11 +8,6 @@ members = [
 	"crates/microsoft/runtime",
 
 	"mod/crash-logger",
-	"mod/eldenring/matchmaking-test",
-
-	"bin/offline-aob",
-	"bin/rtti-hierarchy-graph",
-	"bin/virtual-destructor-finder",
 ]
 
 [workspace.dependencies]
@@ -20,4 +15,4 @@ log = "0.4"
 log4rs = "1"
 bincode = "1.3.3"
 serde = "1.0"
-detour = { git = "https://github.com/veeenu/detour-rs.git", branch = "master" }
+detour = { git = "https://github.com/Hpmason/retour-rs", branch = "master" }

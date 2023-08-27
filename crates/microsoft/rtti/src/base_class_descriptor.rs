@@ -26,7 +26,7 @@ impl fmt::Debug for BaseClassDescriptor {
             .field("type_descriptor", &format_args!("{:#x?}", self.type_descriptor))
             .field("contained_base_count", &format_args!("{}", self.contained_base_count))
             .field("attributes", &format_args!("{:#x?}", self.attributes))
-            .field("class_hierachy_descriptor", &format_args!("{:#x?}", self.class_hierarchy_descriptor))
+            .field("class_hierarchy_descriptor", &format_args!("{:#x?}", self.class_hierarchy_descriptor))
             .finish()
     }
 }
