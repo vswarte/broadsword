@@ -29,7 +29,7 @@ pub fn get_classname(ptr: usize) -> Option<String> {
         return  None;
     }
 
-    match get_cache_entry(&ptr) {
+    match get_cache_entry(ptr) {
         Some(e) => {
             return if e.is_vftable {
                 e.name.clone()
@@ -99,12 +99,12 @@ fn setup_vftable_cache() -> RwLock<HashMap<usize, CachedRTTILookupResult>> {
     RwLock::new(HashMap::new())
 }
 
-fn get_cache_entry(ptr: &usize) -> Option<CachedRTTILookupResult> {
+fn get_cache_entry(ptr: usize) -> Option<CachedRTTILookupResult> {
     unsafe {
         VFTABLE_CACHE.get_or_init(|| setup_vftable_cache())
             .read()
             .unwrap()
-            .get(ptr)
+            .get(&ptr)
             .cloned()
     }
 }
