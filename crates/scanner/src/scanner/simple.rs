@@ -1,39 +1,40 @@
-use broadsword_address::Offset;
 
 use crate::pattern::Pattern;
-use crate::scanner::{Scanner, ScanResult, ScanResultCapture};
+use crate::scanner::{Scanner, ScanResult};
+use crate::scanner::result::{grab_captures, rebase_capture};
 
 #[derive(Default)]
 pub struct SimpleScanner;
 
 impl Scanner for SimpleScanner {
-    fn scan(&self, scannable: &[u8], pattern: &Pattern) -> Option<ScanResult> {
+    fn scan(&self, bytes: &'static [u8], pattern: &Pattern) -> Option<ScanResult> {
         let mut position_in_pattern = 0;
 
-        for (position, byte) in scannable.iter().enumerate() {
+        for (position, byte) in bytes.iter().enumerate() {
+            // Reset position in pattern if current byte is not masked off and doesn't match
+            // expected byte.
             if pattern.mask[position_in_pattern] && pattern.bytes[position_in_pattern] != *byte {
                 position_in_pattern = 0;
                 continue;
             }
 
+            // Check if all bytes in the pattern have been matched.
             if position_in_pattern == pattern.length - 1 {
-                let location = position - pattern.length + 1;
+                // Offset in the bytes the match was found
+                let match_offset = position - pattern.length + 1;
 
-                // Grab the capture group results
-                let mut captures = Vec::new();
-                for group in pattern.capture_groups.iter() {
-                    let group_start = location + group.start;
-                    let group_end = location + group.end;
-
-                    captures.push(ScanResultCapture {
-                        location: Offset::from(group_start),
-                        bytes: scannable[group_start..group_end].to_vec()
-                    });
-                }
+                // Grab data for any capture groups
+                let captures = grab_captures(
+                        &bytes[match_offset..match_offset + pattern.length],
+                        pattern.capture_groups.as_slice()
+                    )
+                    .into_iter()
+                    .map(|c| rebase_capture(c, match_offset))
+                    .collect();
 
                 return Some(ScanResult {
-                    location: Offset::from(location),
-                    captures
+                    location: match_offset,
+                    captures,
                 });
             }
 
@@ -42,12 +43,30 @@ impl Scanner for SimpleScanner {
 
         None
     }
+
+    fn scan_all(&self, bytes: &'static [u8], pattern: &Pattern) -> Vec<ScanResult> {
+        let mut results = Vec::new();
+
+        let mut current_offset = 0;
+        loop {
+            let search_area = &bytes[current_offset..];
+            match self.scan(search_area, pattern) {
+                Some(occurence) => {
+                    // Move cursor to the end of the match
+                    current_offset = current_offset + occurence.location + pattern.length;
+
+                    results.push(occurence);
+                }
+                None => break
+            }
+        }
+
+        results
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use broadsword_address::Offset;
-
     use crate::scanner::Scanner;
     use crate::pattern::Pattern;
     use crate::scanner::simple::SimpleScanner;
@@ -76,7 +95,7 @@ mod tests {
         let randomness = include_bytes!("../../test/random.bin");
         let result = SimpleScanner.scan(randomness, &pattern).unwrap();
 
-        assert_eq!(result.location, Offset::from(1309924));
+        assert_eq!(result.location, 1309924);
         assert_eq!(result.captures.len(), 0);
     }
 
@@ -86,10 +105,10 @@ mod tests {
         let randomness = include_bytes!("../../test/random.bin");
         let result = SimpleScanner.scan(randomness, &pattern).unwrap();
 
-        assert_eq!(result.location, Offset::from(867776));
+        assert_eq!(result.location, 867776);
         assert_eq!(result.captures.len(), 1);
 
-        assert_eq!(result.captures[0].location, Offset::from(867777));
+        assert_eq!(result.captures[0].location, 867777);
         assert_eq!(result.captures[0].bytes, vec![0xc6, 0xcf, 0xd8, 0x11]);
     }
 
@@ -100,5 +119,14 @@ mod tests {
         let result = SimpleScanner.scan(randomness, &pattern);
 
         assert_eq!(result, None);
+    }
+
+    #[test]
+    fn simple_scanner_can_scan_all() {
+        let pattern = Pattern::from_byte_slice(&[0x09, 0x02]);
+        let randomness = include_bytes!("../../test/random.bin");
+        let result = SimpleScanner.scan_all(randomness, &pattern);
+
+        assert_eq!(result.len(), 35);
     }
 }

@@ -4,8 +4,6 @@ use std::ops;
 use std::ffi::{CString};
 use windows::core::{HSTRING, PCSTR, PCWSTR};
 
-/// TODO: clean up str conversion approach for entire file and get of the string_to_* fns
-
 use windows::Win32::Foundation::{HMODULE, MAX_PATH};
 use windows::Win32::System::Threading::GetCurrentProcess;
 use windows::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};

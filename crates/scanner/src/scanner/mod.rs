@@ -1,22 +1,19 @@
-use broadsword_address::Offset;
-
 use crate::pattern::Pattern;
+use crate::scanner::result::ScanResultCapture;
 
+pub mod result;
 pub mod simple;
 pub mod threaded;
 
 pub trait Scanner {
-    fn scan(&self, scannable: &'static [u8], pattern: &Pattern) -> Option<ScanResult>;
+    // Performs a scan over the given bytes
+    fn scan(&self, bytes: &'static [u8], pattern: &Pattern) -> Option<ScanResult>;
+
+    fn scan_all(&self, bytes: &'static [u8], pattern: &Pattern) -> Vec<ScanResult>;
 }
 
 #[derive(Debug, PartialEq)]
 pub struct ScanResult {
-    pub location: Offset,
+    pub location: usize,
     pub captures: Vec<ScanResultCapture>,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct ScanResultCapture {
-    pub location: Offset,
-    pub bytes: Vec<u8>,
 }

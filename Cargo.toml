@@ -2,7 +2,6 @@
 members = [
 	"exports",
 	"crates/scanner",
-	"crates/address",
     "crates/microsoft/rtti",
 	"crates/microsoft/dll",
 	"crates/microsoft/runtime",
@@ -13,6 +12,3 @@ members = [
 [workspace.dependencies]
 log = "0.4"
 log4rs = "1"
-bincode = "1.3.3"
-serde = "1.0"
-detour = { git = "https://github.com/Hpmason/retour-rs", branch = "master" }

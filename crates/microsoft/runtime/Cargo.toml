@@ -6,7 +6,6 @@ edition = "2021"
 [dependencies]
 log = { workspace = true }
 broadsword_rtti = { path = "../rtti" }
-broadsword_address = { path = "../../address" }
 
 [dependencies.windows]
 version = "0.48.0"

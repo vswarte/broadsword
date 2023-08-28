@@ -1,29 +1,25 @@
 use std::fmt;
-use broadsword_address::Offset;
 
 pub struct CompleteObjectLocator {
     pub signature: u32,
-    pub offset: Offset,
-    pub cd_offset: Offset,
-    pub type_descriptor: Offset,
-    pub class_hierarchy_descriptor: Offset,
+    pub offset: u32,
+    pub cd_offset: u32,
+    pub type_descriptor: u32,
+    pub class_hierarchy_descriptor: u32,
 }
 
 impl CompleteObjectLocator {
     /// Constructs a CompleteObjectLocator from a u8 slice.
     /// WARNING: This function does not check if something actually is a valid CompleteObjectLocator.
-    pub fn from_slice(input: &[u8]) -> Self {
-        let offset = Offset::from(u32::from_le_bytes(input[4..8].try_into().unwrap()));
-        let cd_offset = Offset::from(u32::from_le_bytes(input[8..12].try_into().unwrap()));
-        let type_descriptor = Offset::from(u32::from_le_bytes(input[12..16].try_into().unwrap()));
-        let class_hierarchy_descriptor = Offset::from(u32::from_le_bytes(input[16..20].try_into().unwrap()));
+    pub fn from_bytes(input: impl AsRef<[u8]>) -> Self {
+        let input = input.as_ref();
 
         Self {
             signature: u32::from_le_bytes(input[0..4].try_into().unwrap()),
-            offset,
-            cd_offset,
-            type_descriptor,
-            class_hierarchy_descriptor,
+            offset: u32::from_le_bytes(input[4..8].try_into().unwrap()),
+            cd_offset: u32::from_le_bytes(input[8..12].try_into().unwrap()),
+            type_descriptor: u32::from_le_bytes(input[12..16].try_into().unwrap()),
+            class_hierarchy_descriptor: u32::from_le_bytes(input[16..20].try_into().unwrap()),
         }
     }
 }
@@ -46,14 +42,14 @@ mod tests {
 
     #[test]
     fn from_works() {
-        let bytes = vec![0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x98, 0x8e, 0xc6, 0x03, 0x80, 0x71, 0x2e, 0x03 ];
-
-        let col = CompleteObjectLocator::from_slice(bytes.as_slice());
+        let col = CompleteObjectLocator::from_bytes(vec![
+            0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x98, 0x8e, 0xc6, 0x03, 0x80, 0x71, 0x2e, 0x03
+        ]);
 
         assert_eq!(col.signature, 0x1);
-        assert_eq!(col.offset.as_usize(), 0x0);
-        assert_eq!(col.cd_offset.as_usize(), 0x0);
-        assert_eq!(col.type_descriptor.as_usize(), 0x3c68e98);
-        assert_eq!(col.class_hierarchy_descriptor.as_usize(), 0x32e7180);
+        assert_eq!(col.offset, 0x0);
+        assert_eq!(col.cd_offset, 0x0);
+        assert_eq!(col.type_descriptor, 0x3c68e98);
+        assert_eq!(col.class_hierarchy_descriptor, 0x32e7180);
     }
 }

@@ -5,7 +5,9 @@ use msvc_demangler::demangle;
 /// WARNING: hacky
 /// This function attempts to unmangle RTTI symbol names and does it in a horribly hacky way.
 /// This fn relies on `UnDecorateSymbol` indirectly so needs a microsoft machine to run on.
-pub fn undecorate_symbol(input: &str) -> Option<String> {
+pub fn undecorate_symbol(input: impl AsRef<str>) -> Option<String> {
+    let input = input.as_ref();
+
     let name = if input.starts_with(".?A") {
         format!("??1{}QAE@XZ", &input[4..]).to_string()
     } else {
@@ -33,6 +35,8 @@ pub fn undecorate_symbol(input: &str) -> Option<String> {
 
 /// Makes an educated guess as to whether or not some string is a mangled symbol name.
 /// Not a 100% accurate but should suffice for the time being.
-pub fn is_decorated_symbol(input: &str) -> bool {
+pub fn is_decorated_symbol(input: impl AsRef<str>) -> bool {
+    let input = input.as_ref();
+
     input.starts_with(".?") && input.ends_with('@')
 }

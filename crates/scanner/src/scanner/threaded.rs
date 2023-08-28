@@ -1,8 +1,8 @@
 use std::thread;
 
 use crate::pattern::Pattern;
-use crate::util::split_scannable;
 use crate::scanner::{Scanner, ScanResult};
+use crate::scanner::result::rebase_result;
 use crate::scanner::simple::SimpleScanner;
 
 /// This scanner works by taking the search range, splitting it up in chunks and feeding every
@@ -13,37 +13,50 @@ pub struct ThreadedScanner {
     pub thread_count: usize,
 }
 
-impl Scanner for ThreadedScanner {
-    fn scan(&self, scannable: &'static [u8], pattern: &Pattern) -> Option<ScanResult> {
-        let chunks = split_scannable(
-            scannable,
-            self.thread_count,
-            pattern.length - 1
-        );
+impl ThreadedScanner {
+    fn split_into_chunks(&self, bytes: &'static [u8], overlap: usize) -> Vec<(usize, &'static [u8])> {
+        let chunks = self.thread_count;
+        let bytes_per_chunk = bytes.len() / chunks;
 
-        let mut thread_handles = Vec::new();
+        let mut offset: usize = 0;
+        let mut results = Vec::new();
+
+        for _ in 0..chunks {
+            let start = offset;
+            // Clamp the end to the range so we don't go out-of-bounds
+            let end = clamp(
+                start + (bytes_per_chunk + overlap),
+                0,
+                bytes.len()
+            );
+
+            results.push((offset, &bytes[start..end]));
+            offset += bytes_per_chunk;
+        }
+
+        results
+    }
+}
+
+impl Scanner for ThreadedScanner {
+    fn scan(&self, bytes: &'static [u8], pattern: &Pattern) -> Option<ScanResult> {
+        let chunks = self.split_into_chunks(bytes, pattern.length - 1);
+
+        let mut handles = Vec::new();
         for (offset, chunk) in chunks.into_iter() {
             let pattern = pattern.clone();
-
             let handle = thread::spawn(move || {
                 SimpleScanner.scan(chunk, &pattern)
             });
 
-            thread_handles.push((offset, handle));
+            handles.push((offset, handle));
         }
 
-        for handle in thread_handles {
+        for handle in handles {
             // Rebase the scan result to its respective chunk
             let result = handle.1.join()
                 .unwrap()
-                .map(|mut r|{
-                    let offset = handle.0.as_usize();
-
-                    r.location.move_by(offset);
-                    r.captures.iter_mut().for_each(|c| c.location.move_by(offset));
-
-                    r
-                });
+                .map(|r| rebase_result(r, handle.0));
 
             if result.is_some() {
                 return result;
@@ -51,6 +64,34 @@ impl Scanner for ThreadedScanner {
         }
 
         None
+    }
+
+    fn scan_all(&self, bytes: &'static [u8], pattern: &Pattern) -> Vec<ScanResult> {
+        let chunks = self.split_into_chunks(bytes, pattern.length - 1);
+
+        let mut handles = Vec::new();
+        for (offset, chunk) in chunks.into_iter() {
+            let pattern = pattern.clone();
+            let handle = thread::spawn(move || {
+                SimpleScanner.scan_all(chunk, &pattern)
+            });
+
+            handles.push((offset, handle));
+        }
+
+        let mut results = Vec::new();
+        for handle in handles {
+            // Rebase the scan result to its respective chunk
+            results.append(
+                &mut handle.1.join()
+                    .unwrap()
+                    .into_iter()
+                    .map(|r| rebase_result(r, handle.0))
+                    .collect::<Vec<ScanResult>>()
+            );
+        }
+
+        results
     }
 }
 
@@ -66,10 +107,18 @@ impl Default for ThreadedScanner {
     }
 }
 
+fn clamp(input: usize, min: usize, max: usize) -> usize {
+    if input < min {
+        return min;
+    } else if input > max {
+        return max;
+    } else {
+        input
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use broadsword_address::Offset;
-
     use crate::scanner::Scanner;
     use crate::pattern::Pattern;
     use crate::scanner::threaded::ThreadedScanner;
@@ -110,7 +159,7 @@ mod tests {
             .scan(randomness, &pattern)
             .unwrap();
 
-        assert_eq!(result.location, Offset::from(1309924));
+        assert_eq!(result.location, 1309924);
         assert_eq!(result.captures.len(), 0);
     }
 
@@ -122,9 +171,9 @@ mod tests {
             .scan(randomness, &pattern)
             .unwrap();
 
-        assert_eq!(result.location, Offset::from(867776));
+        assert_eq!(result.location, 867776);
         assert_eq!(result.captures.len(), 1);
-        assert_eq!(result.captures[0].location, Offset::from(867777));
+        assert_eq!(result.captures[0].location, 867777);
         assert_eq!(result.captures[0].bytes, vec![0xc6, 0xcf, 0xd8, 0x11]);
     }
 
@@ -135,5 +184,14 @@ mod tests {
         let result = ThreadedScanner::new_with_thread_count(4).scan(randomness, &pattern);
 
         assert_eq!(result, None);
+    }
+
+    #[test]
+    fn threaded_scanner_can_scan_all() {
+        let pattern = Pattern::from_byte_slice(&[0x09, 0x02]);
+        let randomness = include_bytes!("../../test/random.bin");
+        let result = ThreadedScanner::new_with_thread_count(4).scan_all(randomness, &pattern);
+
+        assert_eq!(result.len(), 35);
     }
 }
