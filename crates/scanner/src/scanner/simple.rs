@@ -13,7 +13,7 @@ impl Scanner for SimpleScanner {
         for (position, byte) in bytes.iter().enumerate() {
             // Reset position in pattern if current byte is not masked off and doesn't match
             // expected byte.
-            if pattern.mask[position_in_pattern] && pattern.bytes[position_in_pattern] != *byte {
+            if pattern.bytes[position_in_pattern] != *byte & pattern.mask[position_in_pattern] {
                 position_in_pattern = 0;
                 continue;
             }

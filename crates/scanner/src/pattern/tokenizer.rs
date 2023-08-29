@@ -2,8 +2,7 @@
 pub(crate) enum Token {
     CaptureGroupOpen,
     CaptureGroupClose,
-    ByteWildcard,
-    ByteValue(u8),
+    ByteValue(u8, u8),
 }
 
 #[derive(Debug)]
@@ -29,7 +28,7 @@ pub(crate) fn tokenize_pattern(input: &str) -> Result<Vec<Token>, TokenizationEr
                     input_iter.next();
                 }
 
-                tokens.push(Token::ByteWildcard)
+                tokens.push(Token::ByteValue(0x00, 0x00))
             },
             _ => {
                 // Ensure current character is a 0-9a-f.
@@ -50,7 +49,7 @@ pub(crate) fn tokenize_pattern(input: &str) -> Result<Vec<Token>, TokenizationEr
                 byte_string.push(next_character.unwrap());
                 let parsed_byte = u8::from_str_radix(byte_string.as_str(), 16).unwrap();
 
-                tokens.push(Token::ByteValue(parsed_byte))
+                tokens.push(Token::ByteValue(parsed_byte, 0xFF))
             }
         };
     }
@@ -77,13 +76,13 @@ mod tests {
     fn tokenize_works() {
         let mut tokens = tokenize_pattern("00 [11 ?? ??] EF").unwrap().into_iter();
 
-        assert_eq!(tokens.next(), Some(Token::ByteValue(0x00)));
+        assert_eq!(tokens.next(), Some(Token::ByteValue(0x00, 0xFF)));
         assert_eq!(tokens.next(), Some(Token::CaptureGroupOpen));
-        assert_eq!(tokens.next(), Some(Token::ByteValue(0x11)));
-        assert_eq!(tokens.next(), Some(Token::ByteWildcard));
-        assert_eq!(tokens.next(), Some(Token::ByteWildcard));
+        assert_eq!(tokens.next(), Some(Token::ByteValue(0x11, 0xFF)));
+        assert_eq!(tokens.next(), Some(Token::ByteValue(0x00, 0x00)));
+        assert_eq!(tokens.next(), Some(Token::ByteValue(0x00, 0x00)));
         assert_eq!(tokens.next(), Some(Token::CaptureGroupClose));
-        assert_eq!(tokens.next(), Some(Token::ByteValue(0xEF)));
+        assert_eq!(tokens.next(), Some(Token::ByteValue(0xEF, 0xFF)));
         assert_eq!(tokens.next(), None);
     }
 }

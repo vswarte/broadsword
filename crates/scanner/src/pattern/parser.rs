@@ -20,13 +20,9 @@ pub(crate) fn parse_pattern(input: &str) -> Result<Pattern, ParserError> {
         .iter() {
 
         match token {
-            tokenizer::Token::ByteValue(b) => {
-                mask.push(true);
+            tokenizer::Token::ByteValue(b, m) => {
                 bytes.push(*b);
-            },
-            tokenizer::Token::ByteWildcard => {
-                mask.push(false);
-                bytes.push(0);
+                mask.push(*m);
             },
             tokenizer::Token::CaptureGroupOpen => {
                 match current_capture_group_start {

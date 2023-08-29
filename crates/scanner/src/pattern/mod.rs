@@ -6,7 +6,7 @@ pub(crate) mod tokenizer;
 #[derive(Debug, Clone)]
 pub struct Pattern {
     pub bytes: Vec<u8>,
-    pub mask: Vec<bool>,
+    pub mask: Vec<u8>,
     pub length: usize,
     pub capture_groups: Vec<Range<usize>>,
 }
@@ -25,7 +25,7 @@ impl Pattern {
     /// Constructs a pattern from a byte slice. Assumes a mask where all bytes are matched.
     pub fn from_byte_vec(bytes: Vec<u8>) -> Self {
         let length = bytes.len();
-        let mask = vec![true; length];
+        let mask = vec![0xFFu8; length];
         let capture_groups = vec![];
 
         Self { bytes, mask, length, capture_groups }
@@ -71,11 +71,11 @@ mod tests {
         assert_eq!(byte_iter.next(), None);
 
         let mut mask_iter = pattern.mask.iter();
-        assert_eq!(mask_iter.next(), Some(&true));
-        assert_eq!(mask_iter.next(), Some(&true));
-        assert_eq!(mask_iter.next(), Some(&false));
-        assert_eq!(mask_iter.next(), Some(&true));
-        assert_eq!(mask_iter.next(), Some(&true));
+        assert_eq!(mask_iter.next(), Some(&0xFF));
+        assert_eq!(mask_iter.next(), Some(&0xFF));
+        assert_eq!(mask_iter.next(), Some(&0x00));
+        assert_eq!(mask_iter.next(), Some(&0xFF));
+        assert_eq!(mask_iter.next(), Some(&0xFF));
         assert_eq!(mask_iter.next(), None);
 
         assert_eq!(pattern.capture_groups.len(), 2);
@@ -115,5 +115,4 @@ mod tests {
             ParserError::CaptureGroupNotOpened
         ));
     }
-
 }
