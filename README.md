@@ -88,7 +88,7 @@ let game_base: usize = get_module_handle("eldenring.exe");
 ```
 
 ### Finding a symbol in a module
-`get_module_symbol` find a function by examining the IAT.
+`get_module_symbol` finds a function by examining the IAT.
 ```rust
 use broadsword::runtime::get_module_symbol;
 
@@ -96,7 +96,7 @@ let create_file_w_ptr: usize = get_module_symbol("kernel32", "CreateFileW");
 ```
 
 ### Finding the module a pointer belongs to
-`get_module_symbol` find a function by examining the IAT.
+`get_module_symbol` finds a function by examining the IAT.
 ```rust
 use broadsword::runtime::Module;
 use broadsword::runtime::get_module_pointer_belongs_to;
@@ -107,7 +107,7 @@ let module_memory_range: Range<usize> = some_module.memory_range;
 ```
 
 ### Finding the range of a section within a module
-`get_module_symbol` find a function by examining the IAT.
+`get_module_symbol` finds a function by examining the IAT.
 ```rust
 use broadsword::runtime::Module;
 use broadsword::runtime::get_module_section_range;
@@ -127,7 +127,7 @@ let class_name: Option<String> = get_rtti_instance_classname(ptr);
 ```
 
 ### Vftable class names
-`get_rtti_classname` will give use the name too but it expects the vftable pointer directly
+`get_rtti_classname` will give use the name too, but it expects the vftable pointer directly
 instead of a pointer to a class instance.
 ```rust
 use broadsword::runtime::get_rtti_classname;
