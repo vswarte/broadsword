@@ -88,37 +88,37 @@ fn get_module_range_by_base(base: usize) -> Option<ops::Range<usize>> {
 }
 
 #[derive(Debug)]
-pub enum SymbolLookupError {
+pub enum LookupError {
     ModuleNotFound,
     SymbolNotFound,
+    SectionNotFound,
 }
 
 /// Retrieves the handle of a module by its string.
-pub fn get_module_handle(module: impl AsRef<str>) -> Result<usize, SymbolLookupError> {
+pub fn get_module_handle(module: impl AsRef<str>) -> Result<usize, LookupError> {
     unsafe {
         GetModuleHandleW(crate::string::string_to_pcwstr(module))
-            .map_err(|_| SymbolLookupError::ModuleNotFound)
+            .map_err(|_| LookupError::ModuleNotFound)
             .map(|x| x.0 as usize)
     }
 }
 
-pub fn get_module_symbol(module: impl AsRef<str>, symbol: impl AsRef<str>) -> Result<usize, SymbolLookupError> {
+pub fn get_module_symbol(module: impl AsRef<str>, symbol: impl AsRef<str>) -> Result<usize, LookupError> {
     unsafe {
         let h_module = HSTRING::from(module.as_ref());
         let module_handle = GetModuleHandleW(PCWSTR::from_raw(h_module.as_ptr()))
-            .map_err(|_| SymbolLookupError::ModuleNotFound)?;
+            .map_err(|_| LookupError::ModuleNotFound)?;
 
         let symbol = CString::new(symbol.as_ref()).unwrap();
         GetProcAddress(module_handle, PCSTR::from_raw(symbol.as_ptr() as *const u8))
-            .ok_or(SymbolLookupError::SymbolNotFound)
+            .ok_or(LookupError::SymbolNotFound)
             .map(|x| x as usize)
     }
 }
 
 /// Retrieves the address range of a section in a module.
-pub fn get_module_section_range(module: impl AsRef<str>, specified_section: impl AsRef<str>) -> Option<ops::Range<usize>> {
-    let module_base = get_module_handle(module)
-        .expect("Could not get module handle");
+pub fn get_module_section_range(module: impl AsRef<str>, specified_section: impl AsRef<str>) -> Result<ops::Range<usize>, LookupError> {
+    let module_base = get_module_handle(module)?;
 
     let image_nt_header = unsafe { ImageNtHeader(module_base as *const ffi::c_void) };
     let num_sections = unsafe { (*image_nt_header).FileHeader.NumberOfSections as u32 };
@@ -153,14 +153,14 @@ pub fn get_module_section_range(module: impl AsRef<str>, specified_section: impl
 
                 let start = module_base + section_va as usize;
                 let end = module_base + section_va as usize + section_size as usize;
-                return Some(ops::Range { start, end });
+                return Ok(ops::Range { start, end });
             }
 
             current_section_header += section_header_size;
         }
     }
 
-    None
+    Err(LookupError::SectionNotFound)
 }
 
 #[derive(Debug)]
