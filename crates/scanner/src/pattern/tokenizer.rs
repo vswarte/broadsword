@@ -20,7 +20,7 @@ pub(crate) fn tokenize_pattern(input: &str) -> Result<Vec<Token>, TokenizationEr
     let mut tokens = Vec::new();
     while let Some(current_character) = input_iter.next() {
         match current_character {
-            ' ' => { },
+            ' ' | '\n' | '\r' => { },
             '[' => tokens.push(Token::CaptureGroupOpen),
             ']' => tokens.push(Token::CaptureGroupClose),
             '?' => {
