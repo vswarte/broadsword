@@ -9,13 +9,13 @@ pub enum ParserError {
     CaptureGroupNotOpened,
 }
 
-pub(crate) fn parse_pattern(input: impl AsRef<str>) -> Result<Pattern, ParserError> {
+pub(crate) fn parse_pattern(input: &str) -> Result<Pattern, ParserError> {
     let mut bytes = Vec::new();
     let mut mask = Vec::new();
     let mut capture_groups = Vec::<Range<usize>>::new();
     let mut current_capture_group_start = None as Option<usize>;
 
-    for token in tokenizer::tokenize_pattern(input.as_ref())
+    for token in tokenizer::tokenize_pattern(input)
         .map_err(ParserError::Tokenizer)?
         .iter() {
 
