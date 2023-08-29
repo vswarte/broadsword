@@ -1,8 +1,18 @@
 # Broadsword
 A set of shitty memory hacking tools.
 
-## Scanner
+## DLL bootstrapping
+Small macro to generate the DllMain:
+```rust
+use broadsword::dll;
 
+#[dll::entrypoint]
+pub fn entry(module_base: usize) -> bool {
+  // Usual DllMain stuff
+}
+```
+
+## Scanner
 ### Single-threaded scans
 Example:
 ```rust
@@ -37,6 +47,18 @@ use broadsword::scanner::ThreadedScanner;
 
 let pattern = Pattern::from_pattern_str("B7 [?? CF D8 ??] 0A ?? 27").unwrap();
 let result = ThreadedScanner::new_with_thread_count(4).scan(scannable, &pattern);
+```
+
+#### Multiple matches
+You can also use the scanners to match all occurrences of a pattern:
+
+```rust
+use broadsword::scanner::Pattern;
+use broadsword::scanner::ThreadedScanner;
+
+let pattern = Pattern::from_pattern_str("B7 [?? CF D8 ??] 0A ?? 27").unwrap();
+let simple_result = SimpleScanner::default().scan_all(scannable, &pattern);
+let threaded_result = ThreadedScanner::default().scan_all(scannable, &pattern);
 ```
 
 ## Windows Modules
