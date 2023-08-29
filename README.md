@@ -1,14 +1,23 @@
 # Broadsword
 A set of shitty memory hacking tools.
 
+**What does this do?**
+I wrote it to do some heavy lifting around common tasks like logging vftables and finding
+byte signatures in process memory.
+
+
+**How do I use this?**
+You want to include this in a DLL that is then injected into a process (like a game or Excel). Then you can
+utilize the function below to do whatever makes your edits to a process tick.
+
 ## DLL bootstrapping
-Small macro to generate the DllMain:
+Small macro to generate the DllMain. It automatically guards against invokes from thread creation and such:
 ```rust
 use broadsword::dll;
 
 #[dll::entrypoint]
 pub fn entry(module_base: usize) -> bool {
-  // Usual DllMain stuff
+  // Usual DllMain DLL_PROCESS_ATTACH stuff
 }
 ```
 
