@@ -29,6 +29,28 @@ pub(crate) fn tokenize_pattern(input: &str) -> Result<Vec<Token>, TokenizationEr
                 }
 
                 tokens.push(Token::ByteValue(0x00, 0x00))
+            }
+            'm' => {
+                let mut result_byte = 0u8;
+                let mut result_mask = 0u8;
+
+                // Consume next 8 characters
+                for i in 0..8 {
+                    match input_iter.next() {
+                        None => return Err(TokenizationError::IncompleteByte),
+                        Some(c) => {
+                            if !is_bit_char(&c) {
+                                return Err(TokenizationError::UnknownInput);
+                            }
+
+                            let shift = 7 - i;
+                            result_byte = result_byte | bool_to_u8(c == '1') << shift;
+                            result_mask = result_mask | bool_to_u8(c != '?') << shift;
+                        }
+                    }
+                }
+
+                tokens.push(Token::ByteValue(result_byte, result_mask))
             },
             _ => {
                 // Ensure current character is a 0-9a-f.
@@ -57,14 +79,27 @@ pub(crate) fn tokenize_pattern(input: &str) -> Result<Vec<Token>, TokenizationEr
     Ok(tokens)
 }
 
-// In theory I could've used u8::from_str_radix but it requires turning the character into a str.
-// So instead I just compare the input char to this list.
+fn bool_to_u8(input: bool) -> u8 {
+    match input {
+        true => 0x1,
+        false => 0x0,
+    }
+}
+
 const RADIX_16_CHARS: [char; 16] = [
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'
 ];
 
 fn is_radix_16_char(input: &char) -> bool {
     RADIX_16_CHARS.contains(input)
+}
+
+const BIT_CHARS: [char; 3] = [
+    '0', '1', '?',
+];
+
+fn is_bit_char(input: &char) -> bool {
+    BIT_CHARS.contains(input)
 }
 
 #[cfg(test)]
@@ -74,7 +109,7 @@ mod tests {
 
     #[test]
     fn tokenize_works() {
-        let mut tokens = tokenize_pattern("00 [11 ?? ??] EF").unwrap().into_iter();
+        let mut tokens = tokenize_pattern("00 [11 ?? ??] m10101?1? EF").unwrap().into_iter();
 
         assert_eq!(tokens.next(), Some(Token::ByteValue(0x00, 0xFF)));
         assert_eq!(tokens.next(), Some(Token::CaptureGroupOpen));
@@ -82,6 +117,7 @@ mod tests {
         assert_eq!(tokens.next(), Some(Token::ByteValue(0x00, 0x00)));
         assert_eq!(tokens.next(), Some(Token::ByteValue(0x00, 0x00)));
         assert_eq!(tokens.next(), Some(Token::CaptureGroupClose));
+        assert_eq!(tokens.next(), Some(Token::ByteValue(0xAA, 0xFA)));
         assert_eq!(tokens.next(), Some(Token::ByteValue(0xEF, 0xFF)));
         assert_eq!(tokens.next(), None);
     }

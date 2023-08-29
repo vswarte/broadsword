@@ -1,4 +1,3 @@
-use crate::pattern::Pattern;
 use crate::scanner::result::ScanResultCapture;
 
 pub mod result;
