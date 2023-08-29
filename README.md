@@ -26,12 +26,12 @@ pub fn entry(module_base: usize) -> bool {
 Example:
 ```rust
 use broadsword::scanner::Pattern;
-use broadsword::scanner::SimpleScanner;
+use broadsword::scanner::simple::scan;
 
 let pattern = Pattern::from_pattern_str("B7 [?? CF D8 ??] 0A ?? 27").unwrap();
 
 // Scannable is a &'static [u8] in which the pattern will be matched
-let result = SimpleScanner::default().scan(scannable, &pattern).unwrap();
+let result = scan(scannable, &pattern).unwrap();
 ```
 
 ### Multi-threaded scans
@@ -40,22 +40,23 @@ per thread on the chunk assigned to the thread.
 
 #### Default (automatic thread count)
 Example:
+
 ```rust
 use broadsword::scanner::Pattern;
-use broadsword::scanner::ThreadedScanner;
+use broadsword::scanner::threaded::scan;
 
 let pattern = Pattern::from_pattern_str("B7 [?? CF D8 ??] 0A ?? 27").unwrap();
-let result = ThreadedScanner::default().scan(scannable, &pattern);
+let result = scan(scannable, &pattern, None);
 ```
 
 #### Manual thread count
 Example:
 ```rust
 use broadsword::scanner::Pattern;
-use broadsword::scanner::ThreadedScanner;
+use broadsword::scanner::threaded::scan;
 
 let pattern = Pattern::from_pattern_str("B7 [?? CF D8 ??] 0A ?? 27").unwrap();
-let result = ThreadedScanner::new_with_thread_count(4).scan(scannable, &pattern);
+let result = scan(scannable, &pattern, Some(4));
 ```
 
 ### Multiple matches
@@ -63,12 +64,12 @@ You can also use the scanners to match all occurrences of a pattern:
 
 ```rust
 use broadsword::scanner::Pattern;
-use broadsword::scanner::SimpleScanner;
-use broadsword::scanner::ThreadedScanner;
+use broadsword::scanner::simple::scan_all as simple_scan_all;
+use broadsword::scanner::threaded::scan_all as threaded_scan_all;
 
 let pattern = Pattern::from_pattern_str("B7 [?? CF D8 ??] 0A ?? 27").unwrap();
-let simple_result = SimpleScanner::default().scan_all(scannable, &pattern);
-let threaded_result = ThreadedScanner::default().scan_all(scannable, &pattern);
+let simple_result = simple_scan_all(scannable, &pattern);
+let threaded_result = threaded_scan_all(scannable, &pattern, None);
 ```
 
 ### Captures
@@ -77,10 +78,10 @@ the square brackets indicate what should be captured.
 
 ```rust
 use broadsword::scanner::Pattern;
-use broadsword::scanner::SimpleScanner;
+use broadsword::scanner::threaded::scan;
 
 let pattern = Pattern::from_pattern_str("B7 [?? CF D8 ??] 0A ?? 27").unwrap();
-let result = SimpleScanner::default().scan(scannable, &pattern);
+let result = scan(scannable, &pattern, Some(4));
 
 assert_eq!(result.captures[0].location, 867777);
 assert_eq!(result.captures[0].bytes, vec![0xc6, 0xcf, 0xd8, 0x11]);
