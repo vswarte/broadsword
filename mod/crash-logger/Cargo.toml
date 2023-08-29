@@ -9,6 +9,12 @@ log4rs = { workspace = "true" }
 iced-x86 = "1.20.0"
 broadsword = { path = "../../exports" }
 
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+opt-level = "z"
+
 [dependencies.windows]
 version = "0.48.0"
 features = [

@@ -3,6 +3,12 @@ name = "broadsword_microsoft_runtime"
 version = "0.0.1"
 edition = "2021"
 
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+opt-level = "z"
+
 [dependencies]
 log = { workspace = true }
 broadsword_rtti = { path = "../rtti" }
