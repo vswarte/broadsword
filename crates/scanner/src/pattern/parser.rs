@@ -7,6 +7,7 @@ pub enum ParserError {
     Tokenizer(tokenizer::TokenizationError),
     CaptureGroupAlreadyOpened,
     CaptureGroupNotOpened,
+    CaptureGroupNotClosed,
 }
 
 pub(crate) fn parse_pattern(input: &str) -> Result<Pattern, ParserError> {
@@ -41,6 +42,11 @@ pub(crate) fn parse_pattern(input: &str) -> Result<Pattern, ParserError> {
                 }
             },
         }
+    }
+
+    // Guard against unclosed capture groups as otherwise it'll silently not capture the input.
+    if !current_capture_group_start.is_none() {
+        return Err(ParserError::CaptureGroupNotClosed)
     }
 
     Ok(Pattern {
