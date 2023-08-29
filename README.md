@@ -114,8 +114,8 @@ let class_name: Option<String> = get_rtti_instance_classname(ptr);
 `get_rtti_classname` will give use the name too but it expects the vftable pointer directly
 instead of a pointer to a class instance.
 ```rust
-use broadsword::runtime::get_rtti_instance_classname;
+use broadsword::runtime::get_rtti_classname;
 
 let ptr: usize = 0x123456;
-let class_name: Option<String> = get_rtti_instance_classname(ptr);
+let class_name: Option<String> = get_rtti_classname(ptr);
 ```
