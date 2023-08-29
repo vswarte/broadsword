@@ -116,7 +116,7 @@ let module_memory_range: Range<usize> = some_module.memory_range;
 ```
 
 ### Finding the range of a section within a module
-`get_module_symbol` finds a function by examining the IAT.
+`get_module_symbol` finds a function by examining the section table.
 ```rust
 use broadsword::runtime::Module;
 use broadsword::runtime::get_module_section_range;
