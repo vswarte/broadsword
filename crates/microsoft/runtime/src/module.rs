@@ -94,7 +94,7 @@ pub enum SymbolLookupError {
 }
 
 /// Retrieves the handle of a module by its string.
-pub fn get_module_handle(module: String) -> Result<usize, SymbolLookupError> {
+pub fn get_module_handle(module: impl AsRef<str>) -> Result<usize, SymbolLookupError> {
     unsafe {
         GetModuleHandleW(crate::string::string_to_pcwstr(module))
             .map_err(|_| SymbolLookupError::ModuleNotFound)
@@ -102,21 +102,21 @@ pub fn get_module_handle(module: String) -> Result<usize, SymbolLookupError> {
     }
 }
 
-pub fn get_module_symbol(module: &str, symbol: &str) -> Result<usize, SymbolLookupError> {
+pub fn get_module_symbol(module: impl AsRef<str>, symbol: impl AsRef<str>) -> Result<usize, SymbolLookupError> {
     unsafe {
-        let h_module = HSTRING::from(module);
+        let h_module = HSTRING::from(module.as_ref());
         let module_handle = GetModuleHandleW(PCWSTR::from_raw(h_module.as_ptr()))
             .map_err(|_| SymbolLookupError::ModuleNotFound)?;
 
-        let symbol = CString::new(symbol).unwrap();
+        let symbol = CString::new(symbol.as_ref()).unwrap();
         GetProcAddress(module_handle, PCSTR::from_raw(symbol.as_ptr() as *const u8))
             .ok_or(SymbolLookupError::SymbolNotFound)
             .map(|x| x as usize)
     }
 }
 
-/// Retrieves the address range of a section in a module. Hacky as hell.
-pub fn get_module_section_range(module: String, specified_section: String) -> Option<ops::Range<usize>> {
+/// Retrieves the address range of a section in a module.
+pub fn get_module_section_range(module: impl AsRef<str>, specified_section: impl AsRef<str>) -> Option<ops::Range<usize>> {
     let module_base = get_module_handle(module)
         .expect("Could not get module handle");
 
@@ -135,6 +135,7 @@ pub fn get_module_section_range(module: String, specified_section: String) -> Op
         + mem::size_of::<IMAGE_NT_HEADERS64>()
         + ((number_of_rva_and_sizes - 16) * 8) as usize;
 
+    let specified_section = specified_section.as_ref();
     unsafe {
         let mut current_section_header = section_base;
         let section_header_size = mem::size_of::<IMAGE_SECTION_HEADER>();
