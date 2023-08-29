@@ -49,16 +49,32 @@ let pattern = Pattern::from_pattern_str("B7 [?? CF D8 ??] 0A ?? 27").unwrap();
 let result = ThreadedScanner::new_with_thread_count(4).scan(scannable, &pattern);
 ```
 
-#### Multiple matches
+### Multiple matches
 You can also use the scanners to match all occurrences of a pattern:
 
 ```rust
 use broadsword::scanner::Pattern;
+use broadsword::scanner::SimpleScanner;
 use broadsword::scanner::ThreadedScanner;
 
 let pattern = Pattern::from_pattern_str("B7 [?? CF D8 ??] 0A ?? 27").unwrap();
 let simple_result = SimpleScanner::default().scan_all(scannable, &pattern);
 let threaded_result = ThreadedScanner::default().scan_all(scannable, &pattern);
+```
+
+### Captures
+Both scanners also have the ability of capturing bytes from the occurrences by using the `[00 00 00 00]` notation where 
+the square brackets indicate what should be captured.
+
+```rust
+use broadsword::scanner::Pattern;
+use broadsword::scanner::SimpleScanner;
+
+let pattern = Pattern::from_pattern_str("B7 [?? CF D8 ??] 0A ?? 27").unwrap();
+let result = SimpleScanner::default().scan(scannable, &pattern);
+
+assert_eq!(result.captures[0].location, 867777);
+assert_eq!(result.captures[0].bytes, vec![0xc6, 0xcf, 0xd8, 0x11]);
 ```
 
 ## Windows Modules
