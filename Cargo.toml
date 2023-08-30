@@ -4,6 +4,7 @@ members = [
 	"crates/scanner",
     "crates/microsoft/rtti",
 	"crates/microsoft/dll",
+	"crates/microsoft/debug",
 	"crates/microsoft/runtime",
 
 	"mod/crash-logger",
