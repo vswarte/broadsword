@@ -27,6 +27,8 @@ pub fn enable_veh_hooks() {
         .expect("Could not locate RemoveVectoredExceptionHandler from IAT");
 
     unsafe {
+        AddVectoredExceptionHandler(0x1, Some(exception_handler));
+
         ADD_VECTORED_EXCEPTION_HANDLER_HOOK.initialize(
             mem::transmute(add_vectored_exception_handler),
             |first: u32, handler: PVECTORED_EXCEPTION_HANDLER| add_vectored_exception_handler_detour(first, handler)
@@ -38,8 +40,6 @@ pub fn enable_veh_hooks() {
             |handle: *const ffi::c_void| remove_vectored_exception_handler_detour(handle)
         ).unwrap();
         REMOVE_VECTORED_EXCEPTION_HANDLER_HOOK.enable().unwrap();
-
-        AddVectoredExceptionHandler(0x1, Some(exception_handler));
     }
 }
 
