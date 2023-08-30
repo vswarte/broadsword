@@ -11,6 +11,7 @@ opt-level = "z"
 
 [dependencies]
 log = "0.4.19"
+rand = "0.8.5"
 broadsword_microsoft_runtime = { path = "../runtime" }
 detour = { git = "https://github.com/veeenu/detour-rs.git", branch = "master" }
 

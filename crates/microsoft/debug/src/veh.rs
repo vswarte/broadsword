@@ -1,8 +1,16 @@
 use std::mem;
 use std::ffi;
+use std::sync;
+use std::sync::RwLock;
 
+use rand::Rng;
 use detour::static_detour;
-use windows::Win32::System::Diagnostics::Debug::PVECTORED_EXCEPTION_HANDLER;
+use windows::Win32::System::Kernel::ExceptionContinueSearch;
+use windows::Win32::System::Diagnostics::Debug::{
+    AddVectoredExceptionHandler,
+    PVECTORED_EXCEPTION_HANDLER,
+    EXCEPTION_POINTERS,
+};
 
 use broadsword_microsoft_runtime::module;
 
@@ -30,6 +38,8 @@ pub fn enable_veh_hooks() {
             |handle: *const ffi::c_void| remove_vectored_exception_handler_detour(handle)
         ).unwrap();
         REMOVE_VECTORED_EXCEPTION_HANDLER_HOOK.enable().unwrap();
+
+        AddVectoredExceptionHandler(0x1, Some(exception_handler));
     }
 }
 
@@ -40,23 +50,83 @@ pub fn disable_veh_hooks() {
     }
 }
 
+unsafe extern "system" fn exception_handler(exception_info: *mut EXCEPTION_POINTERS) -> i32 {
+    let record = *(*exception_info).ExceptionRecord;
+
+    let mut handlers = get_veh_handlers()
+        .read()
+        .unwrap();
+
+    for entry in handlers.iter() {
+        if let Some(handler) = entry.handler {
+            let result = handler(exception_info);
+            log::info!("Called {:#x} and received {:#x}", entry.handle, result);
+        }
+    }
+
+    ExceptionContinueSearch.0
+}
+
 unsafe extern "system" fn remove_vectored_exception_handler_detour(handle: *const ffi::c_void) -> u32 {
-    let success = REMOVE_VECTORED_EXCEPTION_HANDLER_HOOK.call(handle);
+    // let success = REMOVE_VECTORED_EXCEPTION_HANDLER_HOOK.call(handle);
+    let handle = handle as usize;
 
-    log::info!("Removed VE handler: {:#x} -> {:#x}", handle as usize, success);
+    log::info!("Removing VE handler: {:#x}", handle as usize);
 
-    success
+    let mut handlers = get_veh_handlers()
+        .write()
+        .unwrap();
+
+    match handlers.iter().position(|e| e.handle == handle) {
+        None => 0x0,
+        Some(position) => {
+            handlers.remove(position);
+            0x1
+        }
+    }
 }
 
 unsafe extern "system" fn add_vectored_exception_handler_detour(
     first: u32,
     handler: PVECTORED_EXCEPTION_HANDLER
 ) -> *mut ffi::c_void {
-    let handle = ADD_VECTORED_EXCEPTION_HANDLER_HOOK.call(first, handler);
+    // let handle = ADD_VECTORED_EXCEPTION_HANDLER_HOOK.call(first, handler);
+    let handle = generate_handle();
 
     if let Some(fn_ptr) = handler {
-        log::info!("Added VE handler: {:#x} -> {:#x}", fn_ptr as usize, handle as usize);
+        log::info!("Adding VE handler: {:#x} -> {:#x}", fn_ptr as usize, handle as usize);
     }
 
-    handle
+    let entry = VEHChainEntry {
+        handle,
+        handler,
+    };
+
+    let mut handlers = get_veh_handlers()
+        .write()
+        .unwrap();
+
+    if first == 0x0 {
+        handlers.push(entry);
+    } else {
+        handlers.insert(0, entry);
+    }
+
+    handle as *mut ffi::c_void
+}
+
+fn generate_handle() -> usize {
+    let mut rng = rand::thread_rng();
+    rng.gen::<usize>()
+}
+
+static VEH_LIST: sync::OnceLock<sync::RwLock<Vec<VEHChainEntry>>> = sync::OnceLock::new();
+
+unsafe fn get_veh_handlers() -> &'static sync::RwLock<Vec<VEHChainEntry>> {
+    VEH_LIST.get_or_init(|| RwLock::new(Vec::new()))
+}
+
+struct VEHChainEntry {
+    pub handle: usize,
+    pub handler: PVECTORED_EXCEPTION_HANDLER,
 }
