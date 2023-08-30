@@ -68,7 +68,6 @@ unsafe extern "system" fn exception_handler(exception_info: *mut EXCEPTION_POINT
 }
 
 unsafe extern "system" fn remove_vectored_exception_handler_detour(handle: *const ffi::c_void) -> u32 {
-    // let success = REMOVE_VECTORED_EXCEPTION_HANDLER_HOOK.call(handle);
     let handle = handle as usize;
 
     log::info!("Removing VE handler: {:#x}", handle as usize);
@@ -78,11 +77,13 @@ unsafe extern "system" fn remove_vectored_exception_handler_detour(handle: *cons
         .unwrap();
 
     match handlers.iter().position(|e| e.handle == handle) {
-        None => 0x0,
         Some(position) => {
             handlers.remove(position);
             0x1
-        }
+        },
+
+        // Call the original to prevent messing with stuff that was registered before we hooked
+        None => REMOVE_VECTORED_EXCEPTION_HANDLER_HOOK.call(handle as *const ffi::c_void),
     }
 }
 
