@@ -53,23 +53,24 @@ unsafe extern "system" fn exception_handler(exception_info: *mut EXCEPTION_POINT
         .unwrap();
 
     for entry in handlers.iter() {
-        if let Some(handler) = entry.handler {
-            let result = handler(exception_info);
-            log::info!("Called {:#x} and received {:#x}", entry.handle, result);
+        let handler = entry.handler.unwrap();
+        let result = handler(exception_info);
+        log::debug!("Called {:#x} and received {:#x}", entry.handle, result);
 
-            if result == -1 {
-                return -1;
-            }
+        // Return early when ContinueExecution is returned
+        if result == -1 {
+            return -1;
         }
     }
 
+    // ContinueSearch if we can't handle the result
     0
 }
 
 unsafe extern "system" fn remove_vectored_exception_handler_detour(handle: *const ffi::c_void) -> u32 {
     let handle = handle as usize;
 
-    log::info!("Removing VE handler: {:#x}", handle as usize);
+    log::debug!("Removing VE handler: {:#x}", handle as usize);
 
     let mut handlers = get_veh_handlers()
         .write()
@@ -93,7 +94,7 @@ unsafe extern "system" fn add_vectored_exception_handler_detour(
     let handle = HANDLE_COUNTER.fetch_add(1, sync::atomic::Ordering::Relaxed);
 
     if let Some(fn_ptr) = handler {
-        log::info!("Adding VE handler: {:#x} -> {:#x}", fn_ptr as usize, handle as usize);
+        log::debug!("Adding VE handler: {:#x} -> {:#x}", fn_ptr as usize, handle as usize);
     }
 
     let entry = VEHChainEntry {
@@ -114,7 +115,7 @@ unsafe extern "system" fn add_vectored_exception_handler_detour(
     handle as *mut ffi::c_void
 }
 
-static HANDLE_COUNTER: sync::atomic::AtomicUsize = sync::atomic::AtomicUsize::new(1);
+static HANDLE_COUNTER: sync::atomic::AtomicUsize = sync::atomic::AtomicUsize::new(10000);
 static VEH_LIST: sync::OnceLock<sync::RwLock<Vec<VEHChainEntry>>> = sync::OnceLock::new();
 
 unsafe fn get_veh_handlers() -> &'static sync::RwLock<Vec<VEHChainEntry>> {
