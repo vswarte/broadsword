@@ -16,6 +16,8 @@ static_detour! {
     static REMOVE_VECTORED_EXCEPTION_HANDLER_HOOK: unsafe extern "system" fn(*const ffi::c_void) -> u32;
 }
 
+static mut VEH_HANDLE: Option<*mut ffi::c_void> = None;
+
 pub fn enable_veh_hooks() {
     let add_vectored_exception_handler = module::get_module_symbol("kernel32", "AddVectoredExceptionHandler")
         .expect("Could not locate AddVectoredExceptionHandler from IAT");
@@ -24,7 +26,9 @@ pub fn enable_veh_hooks() {
         .expect("Could not locate RemoveVectoredExceptionHandler from IAT");
 
     unsafe {
-        AddVectoredExceptionHandler(0x1, Some(exception_handler));
+        if VEH_HANDLE.is_none() {
+            VEH_HANDLE = Some(AddVectoredExceptionHandler(0x1, Some(exception_handler)));
+        }
 
         ADD_VECTORED_EXCEPTION_HANDLER_HOOK.initialize(
             mem::transmute(add_vectored_exception_handler),
@@ -41,6 +45,7 @@ pub fn enable_veh_hooks() {
 }
 
 pub fn disable_veh_hooks() {
+    // We can't really remove the handler as there is no telling when the last VEH is removed
     unsafe {
         ADD_VECTORED_EXCEPTION_HANDLER_HOOK.disable().unwrap();
         REMOVE_VECTORED_EXCEPTION_HANDLER_HOOK.disable().unwrap();
@@ -52,19 +57,12 @@ unsafe extern "system" fn exception_handler(exception_info: *mut EXCEPTION_POINT
         .read()
         .unwrap();
 
-    for entry in handlers.iter() {
-        let handler = entry.handler.unwrap();
-        let result = handler(exception_info);
-        log::debug!("Called {:#x} and received {:#x}", entry.handle, result);
-
-        // Return early when ContinueExecution is returned
-        if result == -1 {
-            return -1;
-        }
+    // Check if any handlers return a ContinueExecution
+    if handlers.iter().any(|e| e.handler.unwrap()(exception_info) == -1) {
+        -1
+    } else {
+        0
     }
-
-    // ContinueSearch if we can't handle the result
-    0
 }
 
 unsafe extern "system" fn remove_vectored_exception_handler_detour(handle: *const ffi::c_void) -> u32 {
@@ -91,21 +89,19 @@ unsafe extern "system" fn add_vectored_exception_handler_detour(
     first: u32,
     handler: PVECTORED_EXCEPTION_HANDLER
 ) -> *mut ffi::c_void {
-    let handle = HANDLE_COUNTER.fetch_add(1, sync::atomic::Ordering::Relaxed);
-
-    if let Some(fn_ptr) = handler {
-        log::debug!("Adding VE handler: {:#x} -> {:#x}", fn_ptr as usize, handle as usize);
+    if handler.is_none() {
+        return 0x0;
     }
 
-    let entry = VEHChainEntry {
-        handle,
-        handler,
-    };
+    let handle = HANDLE_COUNTER.fetch_add(1, sync::atomic::Ordering::Relaxed);
+    let handler_ptr = handler.unwrap();
+    log::debug!("Adding VE handler: {:#x} -> {:#x}", handler_ptr as usize, handle as usize);
 
     let mut handlers = get_veh_handlers()
         .write()
         .unwrap();
 
+    let entry = VEHChainEntry { handle, handler };
     if first == 0x0 {
         handlers.push(entry);
     } else {
