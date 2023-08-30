@@ -34,7 +34,7 @@ pub fn enable_veh_hooks() {
         ADD_VECTORED_EXCEPTION_HANDLER_HOOK.enable().unwrap();
 
         REMOVE_VECTORED_EXCEPTION_HANDLER_HOOK.initialize(
-            mem::transmute(add_vectored_exception_handler),
+            mem::transmute(remove_vectored_exception_handler),
             |handle: *const ffi::c_void| {
                 let success = REMOVE_VECTORED_EXCEPTION_HANDLER_HOOK.call(handle);
 
