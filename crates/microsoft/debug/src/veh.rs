@@ -1,14 +1,8 @@
 use std::mem;
 use std::ffi;
 use std::sync;
-use std::sync::RwLock;
 
-use rand::Rng;
 use detour::static_detour;
-use windows::Win32::System::Kernel::{
-    ExceptionContinueSearch,
-    ExceptionContinueExecution,
-};
 use windows::Win32::System::Diagnostics::Debug::{
     AddVectoredExceptionHandler,
     PVECTORED_EXCEPTION_HANDLER,
@@ -54,9 +48,7 @@ pub fn disable_veh_hooks() {
 }
 
 unsafe extern "system" fn exception_handler(exception_info: *mut EXCEPTION_POINTERS) -> i32 {
-    let record = *(*exception_info).ExceptionRecord;
-
-    let mut handlers = get_veh_handlers()
+    let handlers = get_veh_handlers()
         .read()
         .unwrap();
 
@@ -98,8 +90,7 @@ unsafe extern "system" fn add_vectored_exception_handler_detour(
     first: u32,
     handler: PVECTORED_EXCEPTION_HANDLER
 ) -> *mut ffi::c_void {
-    // let handle = ADD_VECTORED_EXCEPTION_HANDLER_HOOK.call(first, handler);
-    let handle = generate_handle();
+    let handle = HANDLE_COUNTER.fetch_add(1, sync::atomic::Ordering::Relaxed);
 
     if let Some(fn_ptr) = handler {
         log::info!("Adding VE handler: {:#x} -> {:#x}", fn_ptr as usize, handle as usize);
@@ -123,15 +114,11 @@ unsafe extern "system" fn add_vectored_exception_handler_detour(
     handle as *mut ffi::c_void
 }
 
-fn generate_handle() -> usize {
-    let mut rng = rand::thread_rng();
-    rng.gen::<usize>()
-}
-
+static HANDLE_COUNTER: sync::atomic::AtomicUsize = sync::atomic::AtomicUsize::new(1);
 static VEH_LIST: sync::OnceLock<sync::RwLock<Vec<VEHChainEntry>>> = sync::OnceLock::new();
 
 unsafe fn get_veh_handlers() -> &'static sync::RwLock<Vec<VEHChainEntry>> {
-    VEH_LIST.get_or_init(|| RwLock::new(Vec::new()))
+    VEH_LIST.get_or_init(|| sync::RwLock::new(Vec::new()))
 }
 
 struct VEHChainEntry {
