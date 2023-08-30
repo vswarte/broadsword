@@ -66,12 +66,12 @@ unsafe extern "system" fn exception_handler(exception_info: *mut EXCEPTION_POINT
             log::info!("Called {:#x} and received {:#x}", entry.handle, result);
 
             if result == -1 {
-                return ExceptionContinueExecution.0;
+                return -1;
             }
         }
     }
 
-    ExceptionContinueSearch.0
+    0
 }
 
 unsafe extern "system" fn remove_vectored_exception_handler_detour(handle: *const ffi::c_void) -> u32 {
