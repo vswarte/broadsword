@@ -21,27 +21,13 @@ pub fn enable_veh_hooks() {
     unsafe {
         ADD_VECTORED_EXCEPTION_HANDLER_HOOK.initialize(
             mem::transmute(add_vectored_exception_handler),
-            |first: u32, handler: PVECTORED_EXCEPTION_HANDLER| {
-                let handle = ADD_VECTORED_EXCEPTION_HANDLER_HOOK.call(first, handler);
-
-                if let Some(fn_ptr) = handler {
-                    log::info!("Added VE handler: {:#x} -> {:#x}", fn_ptr as usize, handle as usize);
-                }
-
-                handle
-            }
+            |first: u32, handler: PVECTORED_EXCEPTION_HANDLER| add_vectored_exception_handler_detour(first, handler)
         ).unwrap();
         ADD_VECTORED_EXCEPTION_HANDLER_HOOK.enable().unwrap();
 
         REMOVE_VECTORED_EXCEPTION_HANDLER_HOOK.initialize(
             mem::transmute(remove_vectored_exception_handler),
-            |handle: *const ffi::c_void| {
-                let success = REMOVE_VECTORED_EXCEPTION_HANDLER_HOOK.call(handle);
-
-                log::info!("Removed VE handler: {:#x} -> {:#x}", handle as usize, success);
-
-                success
-            }
+            |handle: *const ffi::c_void| remove_vectored_exception_handler_detour(handle)
         ).unwrap();
         REMOVE_VECTORED_EXCEPTION_HANDLER_HOOK.enable().unwrap();
     }
@@ -52,4 +38,25 @@ pub fn disable_veh_hooks() {
         ADD_VECTORED_EXCEPTION_HANDLER_HOOK.disable().unwrap();
         REMOVE_VECTORED_EXCEPTION_HANDLER_HOOK.disable().unwrap();
     }
+}
+
+unsafe extern "system" fn remove_vectored_exception_handler_detour(handle: *const ffi::c_void) -> u32 {
+    let success = REMOVE_VECTORED_EXCEPTION_HANDLER_HOOK.call(handle);
+
+    log::info!("Removed VE handler: {:#x} -> {:#x}", handle as usize, success);
+
+    success
+}
+
+unsafe extern "system" fn add_vectored_exception_handler_detour(
+    first: u32,
+    handler: PVECTORED_EXCEPTION_HANDLER
+) -> *mut ffi::c_void {
+    let handle = ADD_VECTORED_EXCEPTION_HANDLER_HOOK.call(first, handler);
+
+    if let Some(fn_ptr) = handler {
+        log::info!("Added VE handler: {:#x} -> {:#x}", fn_ptr as usize, handle as usize);
+    }
+
+    handle
 }
