@@ -5,7 +5,10 @@ use std::sync::RwLock;
 
 use rand::Rng;
 use detour::static_detour;
-use windows::Win32::System::Kernel::ExceptionContinueSearch;
+use windows::Win32::System::Kernel::{
+    ExceptionContinueSearch,
+    ExceptionContinueExecution,
+};
 use windows::Win32::System::Diagnostics::Debug::{
     AddVectoredExceptionHandler,
     PVECTORED_EXCEPTION_HANDLER,
@@ -61,6 +64,10 @@ unsafe extern "system" fn exception_handler(exception_info: *mut EXCEPTION_POINT
         if let Some(handler) = entry.handler {
             let result = handler(exception_info);
             log::info!("Called {:#x} and received {:#x}", entry.handle, result);
+
+            if result == -1 {
+                return ExceptionContinueExecution.0;
+            }
         }
     }
 
