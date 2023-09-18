@@ -1,6 +1,7 @@
 use std::mem;
 use std::ffi;
 use std::sync;
+use std::collections;
 
 use detour::static_detour;
 use windows::Win32::System::Diagnostics::Debug::{
@@ -10,6 +11,11 @@ use windows::Win32::System::Diagnostics::Debug::{
 };
 
 use broadsword_microsoft_runtime::module;
+
+pub trait ExceptionObserver: Sync + Send {
+    fn on_enter(&self, exception: *mut EXCEPTION_POINTERS);
+    fn on_exit(&self, exception: *mut EXCEPTION_POINTERS, result: i32);
+}
 
 static_detour! {
     static ADD_VECTORED_EXCEPTION_HANDLER_HOOK: unsafe extern "system" fn(u32, PVECTORED_EXCEPTION_HANDLER) -> *mut ffi::c_void;
@@ -52,17 +58,24 @@ pub fn disable_veh_hooks() {
     }
 }
 
-unsafe extern "system" fn exception_handler(exception_info: *mut EXCEPTION_POINTERS) -> i32 {
-    let handlers = get_veh_handlers()
-        .read()
-        .unwrap();
+unsafe extern "system" fn exception_handler(exception: *mut EXCEPTION_POINTERS) -> i32 {
+    for (_, observer) in get_exception_observer_list().write().unwrap().iter() {
+        observer.on_enter(exception)
+    }
 
+    let handlers = get_veh_handlers().read().unwrap();
     // Check if any handlers return a ContinueExecution
-    if handlers.iter().any(|e| e.handler.unwrap()(exception_info) == -1) {
+    let result = if handlers.iter().any(|e| e.handler.unwrap()(exception) == -1) {
         -1
     } else {
         0
+    };
+
+    for (_, observer) in get_exception_observer_list().write().unwrap().iter() {
+        observer.on_exit(exception, result)
     }
+
+    result
 }
 
 unsafe extern "system" fn remove_vectored_exception_handler_detour(handle: *const ffi::c_void) -> u32 {
@@ -90,7 +103,7 @@ unsafe extern "system" fn add_vectored_exception_handler_detour(
     handler: PVECTORED_EXCEPTION_HANDLER
 ) -> *mut ffi::c_void {
     if handler.is_none() {
-        return 0x0;
+        return std::ptr::null_mut();
     }
 
     let handle = HANDLE_COUNTER.fetch_add(1, sync::atomic::Ordering::Relaxed);
@@ -118,7 +131,37 @@ unsafe fn get_veh_handlers() -> &'static sync::RwLock<Vec<VEHChainEntry>> {
     VEH_LIST.get_or_init(|| sync::RwLock::new(Vec::new()))
 }
 
-struct VEHChainEntry {
+pub struct VEHChainEntry {
     pub handle: usize,
     pub handler: PVECTORED_EXCEPTION_HANDLER,
+}
+
+static EXCEPTION_OBSERVER_LIST: sync::OnceLock<sync::RwLock<collections::HashMap<String, Box<dyn ExceptionObserver>>>> = sync::OnceLock::new();
+
+
+unsafe fn get_exception_observer_list() -> &'static sync::RwLock<collections::HashMap<String, Box<dyn ExceptionObserver>>> {
+    EXCEPTION_OBSERVER_LIST.get_or_init(|| sync::RwLock::new(collections::HashMap::new()))
+}
+
+pub fn add_exception_observer(key: impl AsRef<str>, processor: Box<dyn ExceptionObserver>) {
+    let mut preprocessors = unsafe { get_exception_observer_list() }
+        .write()
+        .unwrap();
+
+    log::debug!("Adding exception observer: {}", key.as_ref());
+
+    preprocessors.insert(
+        key.as_ref().to_string(),
+        processor
+    );
+}
+
+pub fn remove_exception_observer(key: impl AsRef<str>) {
+    let mut preprocessors = unsafe { get_exception_observer_list() }
+        .write()
+        .unwrap();
+
+    log::debug!("Removing exception observer: {}", key.as_ref());
+
+    preprocessors.remove(key.as_ref());
 }
