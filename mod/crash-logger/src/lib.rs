@@ -1,41 +1,54 @@
 use std::ptr;
 
-use log::{trace, error};
-use windows::Win32::System::Kernel::ExceptionContinueSearch;
+use log::{trace, error, info};
 use iced_x86::{Decoder, DecoderOptions, Formatter, NasmFormatter};
-use windows::Win32::System::Diagnostics::Debug::{AddVectoredExceptionHandler, EXCEPTION_POINTERS};
+use windows::Win32::System::Diagnostics::Debug::EXCEPTION_POINTERS;
 
 use broadsword::dll;
 use broadsword::logging;
 use broadsword::runtime;
+use broadsword::debug;
 
 #[dll::entrypoint]
 pub fn entry(_: usize) -> bool {
     logging::init("log/crash_logger.log");
 
-    unsafe {
-        AddVectoredExceptionHandler(0x0, Some(exception_filter));
-    }
+    info!("Test lmao");
+
+    debug::enable_veh_hooks();
+
+    let observer = Box::new(CrashLoggerExceptionObserver::default());
+    debug::add_exception_observer("crash_logger", observer);
 
     true
 }
 
-unsafe extern "system" fn exception_filter(exception_info: *mut EXCEPTION_POINTERS) -> i32 {
-    let exception_record = *(*exception_info).ExceptionRecord;
+#[derive(Default)]
+struct CrashLoggerExceptionObserver { }
 
-    let exception_address = exception_record.ExceptionAddress as usize;
-    let exception_module = runtime::get_module_pointer_belongs_to(exception_address);
-    let exception_module_string = exception_module
-        .map_or_else(|| String::from("Unknown"), |x| format_exception_module(x, exception_address));
+impl debug::ExceptionObserver for CrashLoggerExceptionObserver {
+    fn on_enter(&self, _: *mut EXCEPTION_POINTERS) { }
 
-    error!(
-        "Got exception code {:#08x} at {:#08x} - {}",
-        exception_record.ExceptionCode.0, exception_address, exception_module_string
-    );
+    fn on_exit(&self, exception: *mut EXCEPTION_POINTERS, result: i32) {
+        // Don't log exception if any of the handlers handled the exception
+        if result == -1 {
+            return
+        }
 
-    error!("EXCEPTION: {:#?}", exception_record);
+        let exception_record = unsafe { *(*exception).ExceptionRecord };
 
-    ExceptionContinueSearch.0
+        let exception_address = exception_record.ExceptionAddress as usize;
+        let exception_module = runtime::get_module_pointer_belongs_to(exception_address);
+        let exception_module_string = exception_module
+            .map_or_else(|| String::from("Unknown"), |x| format_exception_module(x, exception_address));
+
+        error!(
+            "Got exception code {:#08x} at {:#08x} - {}",
+            exception_record.ExceptionCode.0, exception_address, exception_module_string
+        );
+
+        error!("EXCEPTION: {:#?}", exception_record);
+    }
 }
 
 fn format_exception_module(module: runtime::Module, exception_address: usize) -> String {

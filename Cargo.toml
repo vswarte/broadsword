@@ -1,12 +1,12 @@
 [workspace]
 members = [
-	"exports",
-	"crates/scanner",
+    "exports",
+    "crates/scanner",
     "crates/microsoft/rtti",
-	"crates/microsoft/dll",
-	"crates/microsoft/runtime",
-
-	"mod/crash-logger",
+    "crates/microsoft/dll",
+    "crates/microsoft/debug",
+    "crates/microsoft/runtime",
+    "mod/crash-logger",
 ]
 
 [workspace.dependencies]
