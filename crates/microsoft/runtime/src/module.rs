@@ -1,7 +1,7 @@
 use std::ffi;
 use std::mem;
 use std::ops;
-use std::ffi::{CString};
+use std::ffi::CString;
 use windows::core::{HSTRING, PCSTR, PCWSTR};
 
 use windows::Win32::Foundation::{HMODULE, MAX_PATH};

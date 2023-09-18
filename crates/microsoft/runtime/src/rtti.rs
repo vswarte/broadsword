@@ -15,11 +15,7 @@ use crate::pointer;
 /// the complete object locator to its type descriptor.
 /// Because RTTI uses IBO (image base offsets) we need to know the base to build proper pointers.
 pub fn get_instance_classname(ptr: usize) -> Option<String> {
-    let vftable_candidate = get_vftable_pointer(ptr);
-    match vftable_candidate {
-        None => None,
-        Some(ptr) => get_classname(ptr),
-    }
+    get_vftable_pointer(ptr).and_then(get_classname)
 }
 
 /// Gets a classname from the vftable pointer passed in. This function uses a cache to prevent
@@ -29,15 +25,12 @@ pub fn get_classname(ptr: usize) -> Option<String> {
         return  None;
     }
 
-    match get_cache_entry(ptr) {
-        Some(e) => {
-            return if e.is_vftable {
-                e.name.clone()
-            } else {
-                None
-            }
-        },
-        None => {},
+    if let Some(entry) = get_cache_entry(ptr) {
+        if entry.is_vftable {
+            return entry.name;
+        } else {
+            return None;
+        }
     }
 
     // If we can't correlate the vftable ptr to a base we can't do validation.
@@ -89,7 +82,7 @@ pub fn get_vftable_pointer(ptr: usize) -> Option<usize> {
     if !pointer::is_valid_pointer(result) {
         None
     } else {
-        Some(result.into())
+        Some(result)
     }
 }
 
@@ -101,7 +94,7 @@ fn setup_vftable_cache() -> RwLock<HashMap<usize, CachedRTTILookupResult>> {
 
 fn get_cache_entry(ptr: usize) -> Option<CachedRTTILookupResult> {
     unsafe {
-        VFTABLE_CACHE.get_or_init(|| setup_vftable_cache())
+        VFTABLE_CACHE.get_or_init(setup_vftable_cache)
             .read()
             .unwrap()
             .get(&ptr)
@@ -125,7 +118,7 @@ fn mark_as_vftable(ptr: usize, name: impl AsRef<str>) {
 
 fn add_cache_entry(ptr: usize, entry: CachedRTTILookupResult) {
     unsafe {
-        let _ = VFTABLE_CACHE.get_or_init(|| setup_vftable_cache());
+        let _ = VFTABLE_CACHE.get_or_init(setup_vftable_cache);
 
         let mut cache = VFTABLE_CACHE.get_mut()
             .unwrap()
