@@ -45,7 +45,7 @@ pub(crate) fn parse_pattern(input: &str) -> Result<Pattern, ParserError> {
     }
 
     // Guard against unclosed capture groups as otherwise it'll silently not capture the input.
-    if !current_capture_group_start.is_none() {
+    if current_capture_group_start.is_some() {
         return Err(ParserError::CaptureGroupNotClosed)
     }
 

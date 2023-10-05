@@ -44,8 +44,8 @@ pub(crate) fn tokenize_pattern(input: &str) -> Result<Vec<Token>, TokenizationEr
                             }
 
                             let shift = 7 - i;
-                            result_byte = result_byte | bool_to_u8(c == '1') << shift;
-                            result_mask = result_mask | bool_to_u8(c != '?') << shift;
+                            result_byte |= bool_to_u8(c == '1') << shift;
+                            result_mask |= bool_to_u8(c != '?') << shift;
                         }
                     }
                 }

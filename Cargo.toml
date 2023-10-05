@@ -2,6 +2,7 @@
 members = [
     "exports",
     "crates/scanner",
+    "crates/vftable",
     "crates/microsoft/rtti",
     "crates/microsoft/dll",
     "crates/microsoft/debug",
