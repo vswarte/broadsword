@@ -1,7 +1,7 @@
 use std::ops::Range;
 
-pub(crate) mod parser;
-pub(crate) mod tokenizer;
+pub mod parser;
+pub mod tokenizer;
 
 #[derive(Debug, Clone)]
 pub struct Pattern {
