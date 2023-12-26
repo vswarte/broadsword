@@ -47,10 +47,13 @@ pub fn scan_all(bytes: &'static [u8], pattern: &Pattern) -> Vec<ScanResult> {
     loop {
         let search_area = &bytes[current_offset..];
         match scan(search_area, pattern) {
-            Some(occurence) => {
+            Some(mut occurence) => {
+                // Rebase occurence location to absolute location in slice 
+                let rebased_location = occurence.location + current_offset;
                 // Move cursor to the end of the match
                 current_offset = current_offset + occurence.location + pattern.length;
 
+                occurence.location = rebased_location;
                 results.push(occurence);
             }
             None => break

@@ -90,9 +90,9 @@ fn default_parallelism() -> usize {
 
 fn clamp(input: usize, min: usize, max: usize) -> usize {
     if input < min {
-        return min;
+        min
     } else if input > max {
-        return max;
+        max
     } else {
         input
     }
