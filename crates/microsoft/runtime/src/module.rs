@@ -148,7 +148,7 @@ pub fn get_module_section_range(module: impl AsRef<str>, specified_section: impl
                 .expect("Could not get name from section");
 
             if section_name == specified_section {
-                let section_size = (*section_header).SizeOfRawData;
+                let section_size = (*section_header).Misc.VirtualSize;
                 let section_va = (*section_header).VirtualAddress;
 
                 let start = module_base + section_va as usize;
