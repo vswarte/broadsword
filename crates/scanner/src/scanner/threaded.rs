@@ -134,7 +134,7 @@ mod tests {
 
     #[test]
     fn threaded_scanner_finds_the_pattern_2() {
-        let pattern = Pattern::from_pattern_str("B7 [?? CF D8 ??] 0A ?? 27").unwrap();
+        let pattern = Pattern::from_byte_pattern("B7 [?? CF D8 ??] 0A ?? 27").unwrap();
         let randomness = include_bytes!("../../test/random.bin");
         let result = scanner::threaded::scan(randomness, &pattern, Some(4))
             .unwrap();

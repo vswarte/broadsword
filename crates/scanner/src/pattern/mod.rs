@@ -13,13 +13,12 @@ pub struct Pattern {
 
 impl Pattern {
     /// Parses a pattern string to a pattern used for searching.
-    pub fn from_pattern_str(pattern: &str) -> Result<Self, parser::ParserError> {
-        parser::parse_pattern(pattern)
+    pub fn from_byte_pattern(pattern: &str) -> Result<Self, parser::ParserError> {
+        parser::parse_byte_pattern(pattern)
     }
 
-    /// Wraps `from_pattern_str`. Drops the input `String` after creation of pattern.
-    pub fn from_pattern_string(pattern: String) -> Result<Self, parser::ParserError> {
-        parser::parse_pattern(pattern.as_str())
+    pub fn from_bit_pattern(pattern: &str) -> Result<Self, parser::ParserError>  {
+        parser::parse_bit_pattern(pattern)
     }
 
     /// Constructs a pattern from a byte slice. Assumes a mask where all bytes are matched.
@@ -45,7 +44,7 @@ mod tests {
 
     #[test]
     fn from_works_1() {
-        let pattern = Pattern::from_pattern_str("12 [34 ??] 78 [9A]").unwrap();
+        let pattern = Pattern::from_byte_pattern("12 [34 ??] 78 [9A]").unwrap();
 
         assert_eq!(
             pattern.length, 5,
@@ -88,7 +87,7 @@ mod tests {
 
     #[test]
     fn from_returns_error_on_invalid_hex_value() {
-        let result = Pattern::from_pattern_str("XX 34 ?? 78 9A");
+        let result = Pattern::from_byte_pattern("XX 34 ?? 78 9A");
 
         assert!(matches!(
             result.unwrap_err(),
@@ -98,7 +97,7 @@ mod tests {
 
     #[test]
     fn from_returns_error_on_already_opened_capture_group() {
-        let result = Pattern::from_pattern_str("12[34[56]");
+        let result = Pattern::from_byte_pattern("12[34[56]");
 
         assert!(matches!(
             result.unwrap_err(),
@@ -108,7 +107,7 @@ mod tests {
 
     #[test]
     fn from_returns_error_on_not_yet_opened_capture_group() {
-        let result = Pattern::from_pattern_str("12]34[56]");
+        let result = Pattern::from_byte_pattern("12]34[56]");
 
         assert!(matches!(
             result.unwrap_err(),

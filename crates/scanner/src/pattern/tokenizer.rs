@@ -11,7 +11,9 @@ pub enum TokenizationError {
     IncompleteByte,
 }
 
-pub(crate) fn tokenize_pattern(input: &str) -> Result<Vec<Token>, TokenizationError> {
+pub type TokenizerFn = fn(input: &str) -> Result<Vec<Token>, TokenizationError>;
+
+pub(crate) fn tokenize_byte_pattern(input: &str) -> Result<Vec<Token>, TokenizationError> {
     // Can probably just shift the ASCII values as a speed up
     let input_lower = input.to_lowercase();
     let mut input_iter = input_lower.chars().peekable();
@@ -105,11 +107,11 @@ fn is_bit_char(input: &char) -> bool {
 #[cfg(test)]
 #[allow(clippy::bool_assert_comparison)]
 mod tests {
-    use crate::pattern::tokenizer::{Token, tokenize_pattern};
+    use crate::pattern::tokenizer::{Token, tokenize_byte_pattern};
 
     #[test]
     fn tokenize_works() {
-        let mut tokens = tokenize_pattern("00 [11 ?? ??] m10101?1? EF").unwrap().into_iter();
+        let mut tokens = tokenize_byte_pattern("00 [11 ?? ??] m10101?1? EF").unwrap().into_iter();
 
         assert_eq!(tokens.next(), Some(Token::ByteValue(0x00, 0xFF)));
         assert_eq!(tokens.next(), Some(Token::CaptureGroupOpen));
