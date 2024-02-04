@@ -14,15 +14,7 @@ pub enum ParserError {
 
 pub type ParserResult = Result<Pattern, ParserError>;
 
-pub(crate) fn parse_byte_pattern(input: &str) -> ParserResult {
-    parse_pattern(input, tokenizer::tokenize_byte_pattern)
-}
-
-pub(crate) fn parse_bit_pattern(input: &str) -> ParserResult {
-    parse_pattern(input, tokenizer::tokenize_byte_pattern)
-}
-
-fn parse_pattern(
+pub(crate) fn parse_pattern(
     input: &str,
     tokenizer: TokenizerFn,
 ) -> ParserResult {
@@ -59,7 +51,8 @@ fn parse_pattern(
         }
     }
 
-    // Guard against unclosed capture groups as otherwise it'll silently not capture the input.
+    // Guard against unclosed capture groups as otherwise it'll silently not
+    // capture the input.
     if current_capture_group_start.is_some() {
         return Err(ParserError::CaptureGroupNotClosed)
     }

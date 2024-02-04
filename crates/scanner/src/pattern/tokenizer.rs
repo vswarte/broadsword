@@ -11,7 +11,46 @@ pub enum TokenizationError {
     IncompleteByte,
 }
 
-pub type TokenizerFn = fn(input: &str) -> Result<Vec<Token>, TokenizationError>;
+pub(crate) type TokenizerFn = fn(input: &str) -> Result<Vec<Token>, TokenizationError>;
+
+pub(crate) fn tokenize_bit_pattern(input: &str) -> Result<Vec<Token>, TokenizationError> {
+    let mut input_iter = input.chars().peekable();
+
+    let mut tokens = Vec::new();
+    while let Some(current_character) = input_iter.next() {
+        match current_character {
+            ' ' | '\n' | '\r' => { },
+            '[' => tokens.push(Token::CaptureGroupOpen),
+            ']' => tokens.push(Token::CaptureGroupClose),
+            _ => {
+                let c = current_character;
+
+                let mut result_byte = ((c == '1') as u8) << 7;
+                let mut result_mask = ((c != '?' && c != '.') as u8) << 7;
+
+                for i in 0..7 {
+                    match input_iter.next() {
+                        None => return Err(TokenizationError::IncompleteByte),
+                        Some(c) => {
+                            println!("Character \"{c}\"");
+                            if !is_bit_char(&c) {
+                                return Err(TokenizationError::UnknownInput);
+                            }
+
+                            let shift = 6 - i;
+                            result_byte |= ((c == '1') as u8) << shift;
+                            result_mask |= ((c != '?' && c != '.') as u8) << shift;
+                        }
+                    }
+                }
+
+                tokens.push(Token::ByteValue(result_byte, result_mask))
+            },
+        };
+    }
+
+    Ok(tokens)
+}
 
 pub(crate) fn tokenize_byte_pattern(input: &str) -> Result<Vec<Token>, TokenizationError> {
     // Can probably just shift the ASCII values as a speed up
@@ -46,8 +85,8 @@ pub(crate) fn tokenize_byte_pattern(input: &str) -> Result<Vec<Token>, Tokenizat
                             }
 
                             let shift = 7 - i;
-                            result_byte |= bool_to_u8(c == '1') << shift;
-                            result_mask |= bool_to_u8(c != '?') << shift;
+                            result_byte |= ((c == '1') as u8) << shift;
+                            result_mask |= ((c != '?' && c != '.') as u8) << shift;
                         }
                     }
                 }
@@ -81,13 +120,6 @@ pub(crate) fn tokenize_byte_pattern(input: &str) -> Result<Vec<Token>, Tokenizat
     Ok(tokens)
 }
 
-fn bool_to_u8(input: bool) -> u8 {
-    match input {
-        true => 0x1,
-        false => 0x0,
-    }
-}
-
 const RADIX_16_CHARS: [char; 16] = [
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'
 ];
@@ -96,8 +128,8 @@ fn is_radix_16_char(input: &char) -> bool {
     RADIX_16_CHARS.contains(input)
 }
 
-const BIT_CHARS: [char; 3] = [
-    '0', '1', '?',
+const BIT_CHARS: [char; 4] = [
+    '0', '1', '?', '.',
 ];
 
 fn is_bit_char(input: &char) -> bool {
