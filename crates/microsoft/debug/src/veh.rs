@@ -2,7 +2,7 @@ use std::mem;
 use std::ffi;
 use std::sync;
 
-use detour::static_detour;
+use retour::static_detour;
 use windows::Win32::System::Diagnostics::Debug::{
     AddVectoredExceptionHandler,
     PVECTORED_EXCEPTION_HANDLER,
