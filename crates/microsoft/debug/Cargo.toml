@@ -13,7 +13,7 @@ opt-level = "z"
 log = "0.4.19"
 rand = "0.8.5"
 broadsword_microsoft_runtime = { path = "../runtime" }
-retour = { version = "0.3", features = ["static-detour"] }
+retour = { git = "https://github.com/Hpmason/retour-rs", features = ["static-detour"] }
 
 [dependencies.windows]
 version = "0.48.0"
